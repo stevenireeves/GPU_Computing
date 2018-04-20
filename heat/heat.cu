@@ -5,25 +5,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define M 128
+#define M 1024 
 
 
 __global__ void ftcs(float *f, const float dx, const float k, const float dt)
 {
-	extern __shared__ float temp[];
 	int tid = threadIdx.x + blockIdx.x*blockDim.x;
-	int id = threadIdx.x;
-	if(tid >= M)
+	if(tid > 0 && tid < M-1)
 	{
-		return;
-	}
-
-	temp[id] = f[tid];// load data into temp; 
-	__syncthreads();
- 
-	if(id > 0 && id < blockDim.x-1)
-	{
-		float temp2 =  temp[id] + k*dt/(dx*dx)*(temp[id+1] - 2*temp[id] + temp[id-1]); 
+		float temp2 =  f[tid] + k*dt/(dx*dx)*(f[tid+1] - 2*f[tid] + f[tid-1]); 
 		f[tid] = temp2;	
 	}
 
@@ -59,8 +49,8 @@ int main()
 	float dx = 2.0f/float(M); 
 	float dt = 0.5f*(dx*dx)/k; 
 	float x[M];
-	float tmax = 2.0f; 
-	float t = 0.0f, tio = 0.5f; 
+	float tmax = 0.5f; 
+	float t = 0.0f, tio = 0.125f; 
 	
 	//Allocate Memory 
 	size_t sz = M*sizeof(float); 
@@ -78,6 +68,7 @@ int main()
 	{
 		x[i] = -1.0f + i*dx; 
 		f[i] = exp(-0.5f*pow(x[i],2));
+	//	f[i] = 1.0;
 	}
 
 	//Transfer to device
@@ -94,11 +85,11 @@ int main()
 	while(t<tmax)
 	{
 	//Call the stencil routine
-		ftcs<<<dimGrid, dimBlock, dimBlock.x*sizeof(float)>>>(d_f, dx, k, dt); 
+		ftcs<<<dimGrid, dimBlock>>>(d_f, dx, k, dt); 
 		cudaDeviceSynchronize(); 
 	//Call BC
-//		bc<<<dimGrid, dimBlock>>>(d_f); 
-//		cudaDeviceSynchronize();
+		bc<<<dimGrid, dimBlock>>>(d_f); 
+		cudaDeviceSynchronize();
 		if(fmod(t, tio) == 0.0f)
 		{
 		//IO function
