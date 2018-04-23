@@ -1,5 +1,6 @@
 #include <iostream>
 #include <stdlib.h>
+#include <ctime>
 
 typedef struct{
 	int width;
@@ -43,14 +44,18 @@ void MatAdd(const Matrix A, const Matrix B, Matrix C)
 	dim3 dimGrid(A.width/dimBlock.x, A.height/dimBlock.y);
 	
 	float gpuElapsedTime;
+	clock_t start, stop; 
 	cudaEvent_t gpuStart, gpuStop;
 	cudaEventCreate(&gpuStart);
 	cudaEventCreate(&gpuStop);
 	cudaEventRecord(gpuStart, 0);
 	//Matrix Addition
+	start = clock();
 	MatAddKernel<<<dimGrid,dimBlock>>>(d_A, d_B, d_C); 
-	
 	cudaEventRecord(gpuStop,0);
+	cudaDeviceSynchronize();
+	stop = clock();
+	std::cout<< (double(stop) - double(start))/CLOCKS_PER_SEC << std::endl;
 	cudaEventSynchronize(gpuStop);
 	cudaEventElapsedTime(&gpuElapsedTime, gpuStart, gpuStop); //time in milliseconds
 	cudaEventDestroy(gpuStart);
@@ -72,8 +77,8 @@ int main()
 // Set up matrices
 
 	Matrix A, B, C; 
-	int N = 1024;
-	int M = 1024;
+	int N = 8192;
+	int M = 8192;
 
 	A.width = N;
 	B.width = N; 
@@ -101,7 +106,7 @@ int main()
 
 
 	MatAdd(A,B,C);
-	
+        std::cout<<C.elements[0]<<std::endl;	
 
 	free(A.elements);
 	free(B.elements);
