@@ -5,7 +5,7 @@
 
 #define EPS2 0.0001
 #define BLOCK_SIZE  256 
-#define N 16384
+#define N 1024
 
 __device__ void bodyBodyInteraction(float4 bi, float4 bj, float3 &ai)
 {
@@ -123,7 +123,7 @@ void nbody(float4 *X, float dt, int tio, float tend)
         cudaMalloc((void**)&d_V, N*sizeof(float3));
         cudaMalloc((void**)&d_A, N*sizeof(float3));
 	cudaMemset(d_V, 0.0f, N*sizeof(float3)); 
-
+	cudaMemset(d_A, 0.0f, N*sizeof(float3));
         cudaMemcpy(d_X,X, N*sizeof(float4), cudaMemcpyHostToDevice);
         dim3 dimGrid(N/BLOCK_SIZE);
         dim3 dimBlock(BLOCK_SIZE);
@@ -136,8 +136,6 @@ void nbody(float4 *X, float dt, int tio, float tend)
                         f = "f" + std::to_string(k) + ".dat";
                         cudaMemcpy(X,d_X, N*sizeof(float4), cudaMemcpyDeviceToHost);
 			cudaMemcpy(A,d_A, N*sizeof(float3), cudaMemcpyDeviceToHost); 
-			std::cout<<A[100].x<<std::endl;
-			std::cin.get();
                         io_fun(f, X, N);
                 }
                 t+=dt;
@@ -158,18 +156,25 @@ void nbody(float4 *X, float dt, int tio, float tend)
 int main()
 {
 	float4 *X;
-	float dt = 0.01; 
+	float dt = 0.001; 
 	int tio = 100; 
-	float tend = 10;
+	float tend = 1;
 
 	X = (float4*)malloc(sizeof(float4)*N); 
 	for(int i = 0; i < N; i++)
 	{
-		X[i].x = ((double)rand() / (RAND_MAX)); 
-		X[i].y = ((double)rand() / (RAND_MAX)); 
-		X[i].z = ((double)rand() / (RAND_MAX)); 
+		if(i == 0)
+		{	
+			X[i] = {0.0f, 0.0f, 0.0f, 1000.0};
+
+		}
+		else{
+			X[i].x = ((float)rand() / (RAND_MAX))*2 - 1; 
+			X[i].y = ((float)rand() / (RAND_MAX))*2 - 1; 
+			X[i].z = ((float)rand() / (RAND_MAX))*2 - 1; 
 //		X[i].w = ((double)rand() / (RAND_MAX)); 
-		X[i].w = 1.0f; 
+			X[i].w = 1.0f; 
+		}
 	}
 	io_fun("IC.dat",X,N); //write out initial condition! 
 	nbody(X, dt, tio, tend); 
