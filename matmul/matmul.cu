@@ -105,6 +105,11 @@ void MatMul(const Matrix A, const Matrix B, Matrix C)
 // Matrix Multiplication Kernel
 __global__ void MatMulKernel(Matrix A, Matrix B, Matrix C)
 {
+	//Static shared memory for Asub and Bsub
+	__shared__ float As[BLOCK_SIZE][BLOCK_SIZE];
+	__shared__ float Bs[BLOCK_SIZE][BLOCK_SIZE]; //Great name for an array
+
+
 	// Block row and column;
 	int blockRow = blockIdx.y;
 	int blockCol = blockIdx.x;
@@ -131,9 +136,6 @@ __global__ void MatMulKernel(Matrix A, Matrix B, Matrix C)
 		//Get B submatrix 
 		Matrix Bsub = GetSubMatrix(B, m ,blockCol); 
 		
-		//Static shared memory for Asub and Bsub
-		__shared__ float As[BLOCK_SIZE][BLOCK_SIZE];
-		__shared__ float Bs[BLOCK_SIZE][BLOCK_SIZE]; //Great name for an array
 
 		//Load Asub and Bsub from global memory into shared; 
 
