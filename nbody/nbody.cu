@@ -86,7 +86,7 @@ __global__ void leapfrog(float4 *X, float3 *V, float3 *A, float dt, int iter)
 	temp=A[gid];
 	__syncthreads();
 // Calculate x ^ n +1
-	pos_advance(X[gid], V[gid], A[gid], dt) ;
+	pos_advance(X[gid], V[gid], temp, dt) ;
 	__syncthreads();
 // Calculate acceleration at the n +1 stage
 	calculate_forces(X, A) ;
@@ -114,8 +114,6 @@ void nbody(float4 *X, float dt, int tio, float tend)
 {
         float4 *d_X;
         float3 *d_A, *d_V;
-	float3 *A;
-	A = (float3*)malloc(N*sizeof(float3));
         float t = 0.0f;
         int k = 0;
 	std::string f; 
@@ -135,7 +133,6 @@ void nbody(float4 *X, float dt, int tio, float tend)
                 {
                         f = "f" + std::to_string(k) + ".dat";
                         cudaMemcpy(X,d_X, N*sizeof(float4), cudaMemcpyDeviceToHost);
-			cudaMemcpy(A,d_A, N*sizeof(float3), cudaMemcpyDeviceToHost); 
                         io_fun(f, X, N);
                 }
                 t+=dt;
@@ -157,8 +154,8 @@ int main()
 {
 	float4 *X;
 	float dt = 0.001; 
-	int tio = 100; 
-	float tend = 1;
+	int tio = 10; 
+	float tend = 0.1;
 
 	X = (float4*)malloc(sizeof(float4)*N); 
 	for(int i = 0; i < N; i++)
