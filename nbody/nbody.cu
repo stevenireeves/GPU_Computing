@@ -5,7 +5,7 @@
 
 #define EPS2 0.0001
 #define BLOCK_SIZE  256 
-#define N 1024
+#define N  2048 
 
 __device__ void bodyBodyInteraction(float4 bi, float4 bj, float3 &ai)
 {
@@ -154,23 +154,27 @@ int main()
 {
 	float4 *X;
 	float dt = 0.001; 
-	int tio = 10; 
-	float tend = 0.1;
+	int tio = 50; 
+	float tend = 0.5;
 
 	X = (float4*)malloc(sizeof(float4)*N); 
 	for(int i = 0; i < N; i++)
 	{
 		if(i == 0)
 		{	
-			X[i] = {0.0f, 0.0f, 0.0f, 1e8};
+			X[i] = {0.0f, 0.0f, 0.0f, 200.0f};
 
 		}
+		else if(i == N/2)
+		{
+			X[i] = {5.0f, 5.0f, 5.0f, 200.0f};
+		}
 		else{
-			X[i].x = ((float)rand() / (RAND_MAX))*2 - 1; 
-			X[i].y = ((float)rand() / (RAND_MAX))*2 - 1; 
-			X[i].z = ((float)rand() / (RAND_MAX))*2 - 1; 
+			X[i].x = ((float)rand() / (RAND_MAX))*4+0.5f; 
+			X[i].y = ((float)rand() / (RAND_MAX))*4+0.5f; 
+			X[i].z = ((float)rand() / (RAND_MAX))*4+0.5f; 
 //		X[i].w = ((double)rand() / (RAND_MAX)); 
-			X[i].w = 1.0f; 
+			X[i].w = ((float)rand() / (RAND_MAX))*2; 
 		}
 	}
 	io_fun("IC.dat",X,N); //write out initial condition! 
