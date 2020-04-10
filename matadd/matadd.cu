@@ -1,18 +1,16 @@
 #include <iostream>
 #include <stdlib.h>
-#include <ctime>
+#include "mat.h"
 
-typedef struct{
-	int width;
-	int height;
-	float* elements;
-} Matrix; 
+/* 3 Matrices
+   A, B inputs
+   C output */ 
 
-__global__ void MatAddKernel(Matrix A, Matrix B, Matrix C)
+__global__ void MatAddKernel(const Matrix A, const Matrix B, Matrix C)
 {
 	int idx = threadIdx.x + blockDim.x*blockIdx.x; //thread in x
 	int idy = threadIdx.y + blockDim.y*blockIdx.y; //thread in y
-	int tid = idx + A.width*idy; 
+	int tid = idx + A.width*idy; // Memory is 1D 
 
 	if(idx < A.width && idy < A.height)
 	{
@@ -22,93 +20,53 @@ __global__ void MatAddKernel(Matrix A, Matrix B, Matrix C)
 
 void MatAdd(const Matrix A, const Matrix B, Matrix C)
 {
-	Matrix d_A, d_B, d_C; 
-	d_A.width = A.width;
-	d_A.height = A.height;
-	d_B.width = B.width;
-	d_B.height = B.height; 
-	size_t size = A.width*A.height*sizeof(float); 
-	cudaMalloc(&d_A.elements,size);
-        cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);
+    int Gpu = 1; 
+    //Use Copy Constructor to allocate and copy from host to device
+    int w = A.width, h = A.height; 
+    Matrix d_A(w, h, Gpu);
+    d_A.load(A, Gpu);
 
-	size = B.width * B.height * sizeof(float);
-        cudaMalloc(&d_B.elements,size);
-        cudaMemcpy(d_B.elements, B.elements, size, cudaMemcpyHostToDevice);
+    Matrix d_B(w, h, Gpu); 
+    d_B.load(B, Gpu);
 
-	//Allocate C in device memory
-        d_C.width =  C.width; d_C.height = C.height;
-        size = C.width * C.height * sizeof(float);
-        cudaMalloc(&d_C.elements, size);
-
+    Matrix d_C(w, h, Gpu); 
+ 
 	dim3 dimBlock(16, 16); 
 	dim3 dimGrid(A.width/dimBlock.x, A.height/dimBlock.y);
-	
-	float gpuElapsedTime;
-	clock_t start, stop; 
-	cudaEvent_t gpuStart, gpuStop;
-	cudaEventCreate(&gpuStart);
-	cudaEventCreate(&gpuStop);
-	cudaEventRecord(gpuStart, 0);
-	//Matrix Addition
-	start = clock();
+    std::cout<<dimGrid.x<<std::endl;	
 	MatAddKernel<<<dimGrid,dimBlock>>>(d_A, d_B, d_C); 
-	cudaEventRecord(gpuStop,0);
-	cudaDeviceSynchronize();
-	stop = clock();
-	std::cout<< (double(stop) - double(start))/CLOCKS_PER_SEC << std::endl;
-	cudaEventSynchronize(gpuStop);
-	cudaEventElapsedTime(&gpuElapsedTime, gpuStart, gpuStop); //time in milliseconds
-	cudaEventDestroy(gpuStart);
-	cudaEventDestroy(gpuStop);
-
-	std::cout<<"GPU TIME ELAPSED = " << gpuElapsedTime <<"ms" << std::endl;
 		
-	cudaMemcpy(C.elements, d_C.elements, size, cudaMemcpyDeviceToHost); 
+	cudaMemcpy(C.elements, d_C.elements, C.width*C.height*sizeof(float), cudaMemcpyDeviceToHost); 
 
 	//Free Memory
-	cudaFree(d_A.elements);
-	cudaFree(d_B.elements);
-	cudaFree(d_C.elements);
+    d_A.gpu_deallocate();
+    d_B.gpu_deallocate(); 
+    d_C.gpu_deallocate(); 
 }
+
+
+
 
 //Main program 
 int main()
 {
 // Set up matrices
 
-	Matrix A, B, C; 
-	int N = 8192;
-	int M = 8192;
+    int N = 8192;
+    int M = 8192;
+    Matrix A(M,N), B(M,N), C(M,N); 
 
-	A.width = N;
-	B.width = N; 
-	C.width = N; 
-	
-	A.height = M;
-	B.height = M;
-	C.height = M;
-
-	
-	size_t asize = A.width * A.height * sizeof(float);
-	size_t bsize = B.width * B.height * sizeof(float);
-	size_t csize = C.width * C.height * sizeof(float);
-	
-	A.elements = (float*)malloc(asize);
-	B.elements = (float*)malloc(bsize);
-	C.elements = (float*)malloc(csize);
 	for( int i = 0; i < A.height; i++){
 		for( int j = 0; j < A.width; j++)
 			{
-			A.elements[i*A.width + j] = 1.0f;
-			B.elements[i*B.width + j] = 1.0f;
+    			A.elements[i*A.width + j] = 1.0f;
+	    		B.elements[i*B.width + j] = 1.0f;
 			}
 	}
 
+    MatAdd(A,B,C);
 
-	MatAdd(A,B,C);
-        std::cout<<C.elements[0]<<std::endl;	
-
-	free(A.elements);
-	free(B.elements);
-	free(C.elements);
+    A.cpu_deallocate();
+    B.cpu_deallocate();
+    C.cpu_deallocate();
 }
