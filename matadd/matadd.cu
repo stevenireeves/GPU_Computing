@@ -24,7 +24,7 @@ void MatAdd(const Matrix A, const Matrix B, Matrix C)
     //Use Copy Constructor to allocate and copy from host to device
     int w = A.width, h = A.height; 
     Matrix d_A(w, h, Gpu);
-    d_A.load(A, Gpu);
+    d_A.load(A, Gpu); /*Cuda Memcpy */ 
 
     Matrix d_B(w, h, Gpu); 
     d_B.load(B, Gpu);

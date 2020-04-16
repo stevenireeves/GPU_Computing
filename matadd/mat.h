@@ -8,12 +8,14 @@ public:
 /* Member Data */ 
     int width; 
     int height; 
+    int my_type; 
     float* elements; 
 
 /* Constructors */ 
     Matrix(const int w, const int h, const int type = 0){
         width = w; 
         height = h;
+        my_type = type; //Matrix knows if it's CPU or GPU 
         if(type == 0)
             elements = new float[width*height];
         else
@@ -37,7 +39,7 @@ public:
     }
 
     void gpu_deallocate(){
-        cudaFree(elements); 
+        cudaFree(elements); //Do not use cudaFree 
     }
 };
 #endif
