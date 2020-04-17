@@ -2,12 +2,16 @@
 #include <stdlib.h>
 #include <vector>
 
+/* two array reversal functions to illustrate the use of shared memory */ 
 
+/* staticReverse uses statically allocated shared memory
+   :inputs: array d, length n
+   :outputs: reversed array d */ 
 __global__ void staticReverse(int *d, int n)
 {
 	__shared__ int s[64]; //static shared memory allocation
 	int t = threadIdx.x; 
-	int tr = n - threadIdx.x - 1;
+	int tr = n - t - 1;
 	if(t < n)
 	{
 		s[t] = d[t]; 
@@ -16,6 +20,9 @@ __global__ void staticReverse(int *d, int n)
 	}
 }
 
+/* dynamicReverse uses dynamically allocated shared memory
+   :inputs: array d, length n
+   :outputs: reversed array d */ 
 __global__ void dynamicReverse(int *d, int n)
 {
 	extern __shared__ int s[]; 
