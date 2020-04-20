@@ -15,7 +15,7 @@ extern "C" {
    :inputs: width and height of domain, max_iterations
    :ouputs: 32bit character array containing mandlebrot image
 */
-__global__ void render(unsigned int out[], const int width, const int height, const int max_iter) {
+__global__ void render(unsigned char out[], const int width, const int height, const int max_iter) {
 
   // indexing for mandlebrot set, span domain for escape algo 
   int x_dim = blockIdx.x*blockDim.x + threadIdx.x;
