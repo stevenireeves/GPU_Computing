@@ -1,5 +1,5 @@
 C = nvcc
-NVCCFLAGS =  -arch=sm_60 
+NVCCFLAGS = -arch=sm_60 
 CFLAGS = -std=c++11
 
 all: heat 
