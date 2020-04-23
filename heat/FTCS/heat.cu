@@ -8,15 +8,23 @@
 #define M 1024 
 
 
-__global__ void ftcs(float *f, const float dx, const float k, const float dt)
+__global__ void ftcs(float f[], const float dx, const float k, const float dt)
 {
 	int tid = threadIdx.x + blockIdx.x*blockDim.x;
-	if(tid > 0 && tid < M-1)
+	if(tid > 0 && tid < M-1) // Skip boundaries! 
 	{
 		float temp2 =  f[tid] + k*dt/(dx*dx)*(f[tid+1] - 2*f[tid] + f[tid-1]); 
 		f[tid] = temp2;	
 	}
 
+}
+
+__global__ void initialize(float f[], float x[], const float dx)
+{
+    int tid = threadIdx.x + blockIdx.x*blockDim.x; 
+    float xt = -1.f + tid*dx; 
+	x[tid] = xt; 
+	f[tid] = exp(-0.5f*xt*xt);
 }
 
 __global__ void bc(float *f)
@@ -45,40 +53,39 @@ void io_fun(std::string file, float *x, float *f)
 
 int main()
 {
-	float k = 1.0f; 
+    //Integration Parameters 
+	float k = 1.0f; //Thermal Conductivity
+    /* Numerical Mesh Configuration */ 
 	float dx = 2.0f/float(M); 
 	float dt = 0.5f*(dx*dx)/k; 
-	float x[M];
+
 	float tmax = 0.5f; 
 	float t = 0.0f, tio = 0.125f; 
 	
 	//Allocate Memory 
 	size_t sz = M*sizeof(float); 
-	float *f; 
-	f = (float*)malloc(sz); 
-	float *d_f; 
+	float *f, *x;
+    f = new float[M];
+    x = new float[M]; 
+ 
+	float *d_f, *d_x; 
 	cudaMalloc(&d_f, sz);
+    cudaMalloc(&d_x, sz); 
 	
 	//Kernel parameters
 	dim3 dimBlock(16,1,1); 
 	dim3 dimGrid(M/dimBlock.x, 1,1); 
 	
 	//Apply Initial Condition You could also create a kernel for this
-	for(int i=0; i < M; i++)
-	{
-		x[i] = -1.0f + i*dx; 
-		f[i] = exp(-0.5f*pow(x[i],2));
-	//	f[i] = 1.0;
-	}
-
-	//Transfer to device
-	cudaMemcpy(d_f, f, sz, cudaMemcpyHostToDevice); 
-
-	/* IO Operations for IC */
-	std::string f1 = "IC.dat"; 
-	io_fun(f1, x, f);
-	
-	/*Perform Integration */ 
+    initialize<<<dimGrid, dimBlock>>>(d_f, d_x, dx);
+  
+	//Copy for IO operation
+ 	cudaMemcpy(x, d_x, sz, cudaMemcpyDeviceToHost); 
+   
+    //device x is no longer needed 
+    cudaFree(d_x); 
+		
+	/*====================== Perform Integration =======================*/ 
 
 	std::string f2;
 	int kk = 0;
@@ -96,10 +103,10 @@ int main()
 			f2 = "sol" + std::to_string(kk) + ".dat"; 
 			cudaMemcpy(f,d_f, sz, cudaMemcpyDeviceToHost);
 			io_fun(f2, x, f); 
+    		kk++;
 		}
 
 		t+=dt;
-		kk++;
 	}
 
 	if(fmod(tmax,tio) != 0.0f)
@@ -110,7 +117,7 @@ int main()
 	}
 
 	//deallocate memory 
-	free(f); 
+    delete x, f; 
 	cudaFree(d_f); 
 }
 
