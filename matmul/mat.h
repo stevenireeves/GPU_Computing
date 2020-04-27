@@ -29,63 +29,10 @@ public:
 
 /* member functions */ 
 
-    void load(const Matrix old_matrix, const int dir = 0){
-        size_t size = width*height*sizeof(float);
-        if(dir == 0){ //CPU copy
-            memcpy(elements, old_matrix.elements, size); 
-        }
-        else if(dir == 1){ //GPU copy host to device
-            cudaMemcpy(elements, old_matrix.elements, size, cudaMemcpyHostToDevice);  
-        }
-        else if(dir == 2){ //GPU copy device to host
-            cudaMemcpy(elements, old_matrix.elements, size, cudaMemcpyDeviceToHost);  
-        }
-    }
+    void load(const Matrix old_matrix, const int dir=0);
 
-    void dealloc(int Proc = 0){
-        if(Proc == 0)
-            delete elements;
-        else
-            cudaFree(elements); 
-    }
+    void dealloc(int Proc=0);
 };
 
 
-/* This class only is available on the GPU  
-   Gets the BLOCK_SIZE x BLOCK_SIZE submatrix of a matrix that is
-   located col sub-matrices to the right and row sub-matrices down
-   from the upper-left corner of A */
-
-class subMatrix{
-    public:
-    /* Member Data */ 
-    int width; 
-    int height; 
-    int stride;
-    float* elements; 
-
-    __device__
-    subMatrix(Matrix A, int sub_size, int row, int col)
-    {
-        width = sub_size;
-        height = sub_size;
-        stride = A.stride;
-        // memory at spot
-        elements = &A.elements[stride * width * row + height * col];
-     }
-
-//Get matrix element
-    __device__ 
-    inline float GetElem(const int row, const int col)
-	{
-		return elements[row*stride + col];
-	}
-
-//Set a matrix element
-    __device__ 
-    inline void SetElem(const int row, const int col, const float value)
-	{
-		 elements[row * stride + col] = value; 
-	}
-};
 #endif

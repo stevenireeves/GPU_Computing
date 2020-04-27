@@ -12,6 +12,7 @@
 
 /* Use Matrix Class! */
 #include "mat.h"
+#include "submat.h"
 
 // Thread block size
 #define BLOCK_SIZE 32
@@ -32,7 +33,7 @@ __global__ void naivekernel(const Matrix, const Matrix, Matrix);
 /* MatMul with shared memory 
    :inputs: Matrix A, Matrix B
    :outputs: Matrix C = AB
-*/ 
+ */ 
 void MatMul(const Matrix A, const Matrix B, Matrix C)
 {
     int Gpu = 1; 
@@ -157,7 +158,8 @@ void NaiveMatMul(const Matrix A, const Matrix B, Matrix C)
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid(B.width / dimBlock.x, A.height / dimBlock.y);
 
-    // Use cudaEvet type for timing
+    // Use cudaEvent type for timing
+
     cudaEvent_t start, stop; 
     float elapsed_secs; 
     cudaEventCreate(&start); 
