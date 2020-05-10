@@ -47,7 +47,7 @@ int main()
     size_t gsize = width*height*sizeof(unsigned char);
 
     //Generate gray-scale image object
-    //This constructor requires width, height, number of channels, and number of images
+    //This constructor requires width, height, number of images, and  number of channels,
     CImg<unsigned char> gs(width, height, 1, 1);
 
 
