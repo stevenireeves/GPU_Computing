@@ -4,6 +4,7 @@
 #include <fstream>
 #include <string>
 #include <cmath>
+#include <vector>
 
 #define N 1024 
 #define BLOCK_SIZE 16 
@@ -16,12 +17,11 @@ typedef struct
 } Matrix;
 
 
-void cpu_gj(Matrix A, float *x, float *b, float eps)
+void cpu_gj(Matrix A, float x[], float b[], float eps)
 {
 	float res = 1.0f; 
 	float summ1, summ2;
-	float *temp;
-	temp = new float[A.width]; 
+    std::vector<float> temp(A.width, 0.f); 
 	int counter = 0; 
 	while(res > eps)
 	{
@@ -42,7 +42,6 @@ void cpu_gj(Matrix A, float *x, float *b, float eps)
 		if(counter==A.width)
 			break; 
 	}
-	delete[] temp; 
 	std::cout<<"Steps Taken to Convergence = "<< counter<<std::endl;
 }
 
@@ -59,7 +58,40 @@ void load_Matrix(std::string file, Matrix A)
 }
 
 
-__global__ void naive_gj(Matrix A, float *x, float *xout, float *b) //Computes one iteration of GJ
+__global__ void shared_gj(const Matrix A, const float x[], float xout[], const float b[]) //Computes one iteration of GJ
+{
+        int row = threadIdx.x;
+        int col = threadIdx.y; 
+        int tidx = row + blockIdx.x*blockDim.x;
+        int tidy = col + blockIdx.y*blockDim.y; 
+        if (!(tidx < A.height) || tidy >= A.width)
+                return; // thread outside bounds.
+        __shared__ float Asub[BLOCK_SIZE][BLOCK_SIZE]; 
+        __shared__ float xsub[BLOCK_SIZE];
+        float yval = 0.0f; 
+        for (int block = 0; block < (A.width+BLOCK_SIZE -1)/BLOCK_SIZE; block++)
+        {
+                
+                // grab shared local data for operations
+                Asub[row][col] = A.elements[(block*BLOCK_SIZE + row)*A.width + tidy];
+                xsub[row] = x[block * BLOCK_SIZE + row];
+                // sync threads, all are ready now to compute
+                __syncthreads ();
+
+                // multiply sub matrix and sub vector
+                for (int e = 0; e < BLOCK_SIZE; e++){
+                        int tile_id = block*BLOCK_SIZE + e; 
+                        if(tile_id!=tidx){
+                            yval +=  Asub[row][e] * xsub[e];
+                        }
+                }
+                __syncthreads ();
+        }
+        if(tidy == tidx) 
+        xout[tidx] = 1.0f/A.elements[tidx + tidx*A.width]*(b[tidx] - yval);
+}
+
+__global__ void naive_gj(const Matrix A, const float x[], float xout[], const float b[]) //Computes one iteration of GJ
 {
 	int gid = threadIdx.x + blockIdx.x*blockDim.x; 
 	float summ1 = 0.0f; 
@@ -67,7 +99,7 @@ __global__ void naive_gj(Matrix A, float *x, float *xout, float *b) //Computes o
 	for (int k =0; k < A.width; k++)
 	{
 		if(k!= gid)
-			summ1 += A.elements[k + gid*A.width]*x[k]; 
+			summ1 += A.elements[k + gid*A.width]*x[k]; //dot product 
 	} 
 	temp = 1.0f/A.elements[gid + gid*A.width]*(b[gid] - summ1);
 	xout[gid] = temp; 
@@ -123,8 +155,8 @@ void par_gj(Matrix A, float *x, float *b, float eps)
         d_A.width = A.width;
         d_A.height = A.height;
         float *d_x, *d_b, *d_xnew;
-	float *dres; 
-	dres = (float*)malloc(sizeof(float));
+        float *dres; 
+        dres = (float*)malloc(sizeof(float));
         cudaMalloc((void**)&d_A.elements, A.width*A.height*sizeof(float));
         cudaMalloc((void**)&d_x, A.width*sizeof(float));
         cudaMalloc((void**)&d_b, A.height*sizeof(float));
@@ -134,33 +166,41 @@ void par_gj(Matrix A, float *x, float *b, float eps)
         cudaMemcpy(d_x, x, A.width*sizeof(float),cudaMemcpyHostToDevice);
         cudaMemcpy(d_b, b, A.height*sizeof(float),cudaMemcpyHostToDevice);
 
-        dim3 dimBlock(16);
+        dim3 dimBlock(BLOCK_SIZE);
         dim3 dimGrid((A.width+ dimBlock.x - 1)/dimBlock.x);
+        dim3 dimbMult(BLOCK_SIZE, BLOCK_SIZE); 
+        dim3 dimgMult((A.width+ dimbMult.x - 1)/dimbMult.x, (A.height + dimbMult.y -1)/dimbMult.y);
+        float time; 
+        cudaEvent_t start, stop; 
+        cudaEventCreate(&start); 
+        cudaEventCreate(&stop); 
+        cudaEventRecord(start);         
         while(res>eps)
         {
                 //Compute x^{n+1}
-                naive_gj<<<dimGrid,dimBlock>>>(d_A, d_x, d_xnew, d_b);
-                cudaDeviceSynchronize();
+                naive_gj<<<dimgMult,dimbMult>>>(d_A, d_x, d_xnew, d_b);
+//                shared_gj<<<dimgMult,dimbMult>>>(d_A, d_x, d_xnew, d_b);
 
                 //Compute vector of residuals
                 compute_r<<<dimGrid,dimBlock>>>(d_x,d_xnew); //Store r in d_x
-                cudaDeviceSynchronize();
 
                 //Reduce vector of residuals to find norm
                 reduce_r<<<1,N, N*sizeof(float)>>>(d_x, d_x);
-                cudaMemcpy(dres, d_x, sizeof(float), cudaMemcpyDeviceToHost);
-		res = dres[0]; 
-		std::cout<<res<<std::endl;
-
+               cudaMemcpy(dres, d_x, sizeof(float), cudaMemcpyDeviceToHost);
+               res = dres[0]; 
+//               std::cout<<res<<std::endl; 
                 //X = Xnew
                 fill<<<dimGrid,dimBlock>>>(d_x, d_xnew);
-                cudaDeviceSynchronize();
+                cudaDeviceSynchronize(); 
                 counter++;
                 if(counter==A.width)
                         break;
         }
-        	
-	std::cout<<"Steps Taken to Convergence = "<< counter<<std::endl;
+        cudaEventRecord(stop); 
+        cudaEventSynchronize(stop); 
+        cudaEventElapsedTime(&time, start, stop); 
+    	std::cout<<"Steps Taken to Convergence = "<< counter<<std::endl;
+        std::cout<<"Time for execution = " << time <<"ms" << std::endl; 
 	//export X
         cudaMemcpy(x, d_x, A.width*sizeof(float), cudaMemcpyDeviceToHost);
         cudaFree(d_x);
@@ -171,7 +211,6 @@ void par_gj(Matrix A, float *x, float *b, float eps)
 
 int main()
 {
-
 // Matrix stuff! 
 	Matrix A; 
 	A.width = N; 
@@ -179,28 +218,19 @@ int main()
 	A.elements = (float*)malloc(N*N*sizeof(float)); 
 	load_Matrix("matrix.dat", A);
 
-// Vector stuff! 
-	float *x, *b; 
-	x = (float*)malloc(N*sizeof(float));
-	b = (float*)malloc(N*sizeof(float)); 
-
-	for(int i =0; i < N; i++)
-	{
-		b[i] = 1.0f; 
-		x[i] = 0.0f;
-	}
+// Vector stuff!
+    std::vector<float> x(N, 0.f); 
+    std::vector<float> b(N, 1.f); 
 
 // Gauss-Jacobi Parameters
 	float eps = 1e-7; 	
 
 // Call the Gauss-Jacobi algorithms
-	par_gj(A, x, b, eps); 
+	par_gj(A, x.data(), b.data(), eps); 
 
 	std::cout<<"Soln X = "<<std::endl;
 	for(int i = 0; i <10; i++)
 		std::cout<< x[i] <<std::endl; //  */
-	free(x); 
-	free(b);
 	free(A.elements); 
 }
 

@@ -10,8 +10,8 @@
 
 typedef struct
 {
-        float		 *val; 
-        int              *col; 
+    float		 *val; 
+    int              *col; 
 	int            *rwptr; 
 	int             nvals; 
 	int    	        nrow;
@@ -35,7 +35,8 @@ __global__ void csr_mat_vec(const csrMatrix A, const float *x, float *b)
 		int row_end = A.rwptr[row + 1]; 
 		__syncthreads(); 
 		for(int jj = row_start; jj < row_end; jj++)
-		{	int colId = A.col[jj]; 
+		{	
+            int colId = A.col[jj]; 
 			dot += A.val[jj] * x[colId]; // Steps 2, 3, and 4
 		}
 		b[row] = dot; 

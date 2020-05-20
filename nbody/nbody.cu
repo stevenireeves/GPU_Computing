@@ -7,6 +7,7 @@
 #define BLOCK_SIZE  256 
 #define N  2048 
 
+
 __device__ void bodyBodyInteraction(float4 bi, float4 bj, float3 &ai)
 {
 
@@ -116,19 +117,19 @@ void nbody(float4 *X, float dt, int tio, float tend)
         float3 *d_A, *d_V;
         float t = 0.0f;
         int k = 0;
-	std::string f; 
+    	std::string f; 
         cudaMalloc((void**)&d_X, N*sizeof(float4));
         cudaMalloc((void**)&d_V, N*sizeof(float3));
         cudaMalloc((void**)&d_A, N*sizeof(float3));
-	cudaMemset(d_V, 0.0f, N*sizeof(float3)); 
-	cudaMemset(d_A, 0.0f, N*sizeof(float3));
+    	cudaMemset(d_V, 0.0f, N*sizeof(float3)); 
+    	cudaMemset(d_A, 0.0f, N*sizeof(float3));
         cudaMemcpy(d_X,X, N*sizeof(float4), cudaMemcpyHostToDevice);
         dim3 dimGrid(N/BLOCK_SIZE);
         dim3 dimBlock(BLOCK_SIZE);
         while(t<tend)
         {
                 leapfrog<<<dimGrid,dimBlock>>>(d_X,d_V, d_A, dt, k);
-		cudaDeviceSynchronize();
+        		cudaDeviceSynchronize();
                 if(k%tio==0)
                 {
                         f = "f" + std::to_string(k) + ".dat";
@@ -157,17 +158,18 @@ int main()
 	int tio = 50; 
 	float tend = 0.5;
 
-	X = (float4*)malloc(sizeof(float4)*N); 
+	X = (float4*)malloc(sizeof(float4)*N);
+/* Initial Condition */  
 	for(int i = 0; i < N; i++)
 	{
 		if(i == 0)
 		{	
-			X[i] = {0.0f, 0.0f, 0.0f, 200.0f};
+			X[i] = {0.0f, 0.0f, 0.0f, 300.0f};
 
 		}
 		else if(i == N/2)
 		{
-			X[i] = {5.0f, 5.0f, 5.0f, 200.0f};
+			X[i] = {5.0f, 5.0f, 5.0f, 1.0f};
 		}
 		else{
 			X[i].x = ((float)rand() / (RAND_MAX))*4+0.5f; 
