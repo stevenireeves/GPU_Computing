@@ -3,27 +3,23 @@
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <hip/hip_runtime.h> 
 
-#include <hip_runtime.h>
-
-extern "C" {
-  #include "bmp.h"
-}
-
+#include "CImg.h"
 
 /* Mandlebrot rendering function
    :inputs: width and height of domain, max_iterations
-   :ouputs: 32bit character array containing mandlebrot image
+   :ouputs: 8biti unsigned character array containing mandlebrot image
 */
-__global__ void render(char out[], const int width, const int height, const int max_iter) {
+__global__ void render(unsigned char out[], const int width, const int height, const int max_iter) {
 
   // indexing for mandlebrot set, span domain for escape algo 
   int x_dim = blockIdx.x*blockDim.x + threadIdx.x;
   int y_dim = blockIdx.y*blockDim.y + threadIdx.y;
-  // global index since we're creating a 3 channel image 
-  int index = 3*(width*y_dim + x_dim);
+  // flatten the index.  
+  int index = width*y_dim + x_dim;
 
-  if(index >= 3*width*height) return; 
+  if(index >= width*height) return; 
 
   float x_origin = ((float) x_dim/width)*3.25 - 2; // "Real(C)"  C_x
   float y_origin = ((float) y_dim/width)*2.5 - 1.25; // "Imaginary(C)" C_y  
@@ -33,7 +29,7 @@ __global__ void render(char out[], const int width, const int height, const int 
 
   int iteration = 0;
   //escape algorithm
-  // Everythread will loop in this at most max_iter 
+  // Every thread will loop in this at most max_iter 
   while(x*x + y*y <= 4 && iteration < max_iter) {
     float xtemp = x*x - y*y + x_origin;
     y = 2*x*y + y_origin;
@@ -43,20 +39,14 @@ __global__ void render(char out[], const int width, const int height, const int 
 
   if(iteration == max_iter) {
     out[index] = 0;
-    out[index + 1] = 0;
-    out[index + 2] = 0;
   } else {
     out[index] = iteration;
-    out[index + 1] = iteration;
-    out[index + 2] = iteration;
   }
 }
 /*
 	Conditional loop in the middle -> threads will finish at different times
 	Thread divergence the program as fast as the slowest thread.   
 */
-
-
 
 
 /* Host function for generating the mandlebrot image
@@ -66,14 +56,14 @@ __global__ void render(char out[], const int width, const int height, const int 
 */
 void mandelbrot(const int width, const int height, const int max_iter)
 {
-	// Multiply by 3 here, since we need red, green and blue for each pixel
-  size_t buffer_size = sizeof(char) * width * height * 3;
+  // Multiply by 3 here, since we need red, green and blue for each pixel
+  size_t buffer_size = sizeof(char) * width * height;
 
-  char *image; 
-  hipMalloc((void **) &image, buffer_size);
+  unsigned char *image; 
+  hipMalloc(&image, buffer_size);
 
-  char *host_image; 
-  host_image = new char[width*height*3]; 
+  unsigned char *host_image; 
+  host_image = new unsigned char[width*height]; 
 
   dim3 block_Dim(16, 16, 1); // 16*16 threads 
   dim3 grid_Dim(width / block_Dim.x, height / block_Dim.y, 1); //Rest of the image
@@ -87,7 +77,8 @@ void mandelbrot(const int width, const int height, const int max_iter)
   hipMemcpy(host_image, image, buffer_size, hipMemcpyDeviceToHost);
 
   // Now write the file
-  write_bmp("output_2.bmp", width, height, host_image);
+  cimg_library::CImg<unsigned char> img2(host_image, width, height);
+  img2.save("output.bmp");
 
   hipFree(image);
   delete host_image;

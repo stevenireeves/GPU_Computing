@@ -1,13 +1,9 @@
-C = nvcc
-# CFLAGS = -deviceemu
-
+CPP = hipcc
+CFLAGS = -lX11 -lpthread -std=c++11
 all: mandelbrot
 
-mandelbrot: main.cu bmp.o
-	$(C) $(CFLAGS) -o mandelbrot main.cu bmp.o
-
-bmp.o: bmp.c bmp.h
-	$(C) $(CFLAGS) -c bmp.c
+mandelbrot: main.cpp 
+	$(CPP) $(CFLAGS) -o mandelbrot main.cpp 
 
 clean:
 	rm -f mandelbrot output.bmp *.o

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <vector>
 #include <iostream>
+#include <hip/hip_runtime.h>
 
 /* this is the vector addition kernel. 
    :inputs: n -> Size of vector, integer
@@ -34,22 +35,22 @@ int main()
 	(*float)Malloc(x, N*sizeof(float)); //C
 */
 	//allocate our memory on GPU 
-	cudaMalloc(&d_x, N*sizeof(float));
-	cudaMalloc(&d_y, N*sizeof(float));
+	hipMalloc(&d_x, N*sizeof(float));
+	hipMalloc(&d_y, N*sizeof(float));
 	
 	//Memory Transfer! 
-	cudaMemcpy(d_x, x.data(), N*sizeof(float), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_y, y.data(), N*sizeof(float), cudaMemcpyHostToDevice); 
+	hipMemcpy(d_x, x.data(), N*sizeof(float), hipMemcpyHostToDevice);
+	hipMemcpy(d_y, y.data(), N*sizeof(float), hipMemcpyHostToDevice); 
 
 	//Launch the Kernel! In this configuration there is 1 block with 256 threads
 	//Use gridDim = int((N-1)/256) in general  
 	saxpy<<<1, 256>>>(N, a, d_x, d_y);
 
 	//Transfering Memory back! 
-	cudaMemcpy(y.data(), d_y, N*sizeof(float), cudaMemcpyDeviceToHost);
+	hipMemcpy(y.data(), d_y, N*sizeof(float), hipMemcpyDeviceToHost);
 	std::cout<<"First Element of z = ax + y is " << y[0]<<std::endl; 
-	cudaFree(d_x);
-	cudaFree(d_y);
+	hipFree(d_x);
+	hipFree(d_y);
 	std::cout<<"Done!"<<std::endl;  
 	return 0;
 }
