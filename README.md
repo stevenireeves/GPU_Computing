@@ -1,4 +1,4 @@
-#Demonstration Codes from GPU Computing
+## Demonstration Codes from GPU Computing
 
 These are the code demos and supplemental source files for GPU Computing, taught by Steven I Reeves. PhD. 
 
