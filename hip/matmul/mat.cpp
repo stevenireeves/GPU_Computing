@@ -6,10 +6,10 @@ void Matrix::load(const Matrix old_matrix, const int dir /* = 0 */){
             memcpy(elements, old_matrix.elements, size); 
         }
         else if(dir == 1){ //GPU copy host to device
-            cudaMemcpy(elements, old_matrix.elements, size, cudaMemcpyHostToDevice);  
+            hipMemcpy(elements, old_matrix.elements, size, hipMemcpyHostToDevice);  
         }
         else if(dir == 2){ //GPU copy device to host
-            cudaMemcpy(elements, old_matrix.elements, size, cudaMemcpyDeviceToHost);  
+            hipMemcpy(elements, old_matrix.elements, size, hipMemcpyDeviceToHost);  
         }
 }
 
@@ -17,8 +17,5 @@ void Matrix::dealloc(int Proc /* = 0*/){
         if(Proc == 0)
             delete elements;
         else
-            cudaFree(elements);
+            hipFree(elements);
 }
-
-
-

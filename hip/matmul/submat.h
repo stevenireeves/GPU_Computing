@@ -24,15 +24,15 @@ class subMatrix{
         elements = &A.elements[stride * width * row + height * col];
      }
 //Get matrix element
-	__device__ inline float GetElem(const int row, const int col)
-		{	
-	    return elements[row*stride + col];
-	} 
-	
-	//Set a matrix element
-	__device__ inline void SetElem(const int row, const int col, const float value)
-	{
-	     elements[row * stride + col] = value;
-	}
+    __device__ inline float GetElem(const int row, const int col)
+    	{	
+        return elements[row*stride + col];
+    } 
+    
+    //Set a matrix element
+    __device__ inline void SetElem(const int row, const int col, const float value)
+    {
+         elements[row * stride + col] = value;
+    }
 };
 #endif
