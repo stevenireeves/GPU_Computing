@@ -1,7 +1,8 @@
 #include <stdio.h>
+#include <hip/hip_runtime.h>
  //Query code, mostly borrowed from the internets. 
 // Print device properties
-void printDevProp(cudaDeviceProp devProp)
+void printDevProp(hipDeviceProp devProp)
 {
     printf("Name:                          %s\n",  devProp.name);
     printf("Total global memory:           %zu\n",  devProp.totalGlobalMem);
@@ -27,17 +28,17 @@ int main()
 {
     // Number of CUDA devices
     int devCount;
-    cudaGetDeviceCount(&devCount);
-    printf("CUDA Device Query...\n");
-    printf("There are %d CUDA devices.\n", devCount);
+    hipGetDeviceCount(&devCount);
+    printf("HIP Device Query...\n");
+    printf("There are %d HIP devices.\n", devCount);
  
     // Iterate through devices
     for (int i = 0; i < devCount; ++i)
     {
         // Get device properties
-        printf("\nCUDA Device #%d\n", i);
-        cudaDeviceProp devProp;
-        cudaGetDeviceProperties(&devProp, i);
+        printf("\nHIP Device #%d\n", i);
+        hipDeviceProp devProp;
+        hipGetDeviceProperties(&devProp, i);
         printDevProp(devProp);
     }
  

@@ -1,12 +1,12 @@
 #include <iostream>
 #include <stdlib.h>
-#include <hip/hip_runtime.h>
 #include "mat.h"
 
-/* 3 Matrices
-   A, B inputs
-   C output */ 
-
+/* 
+    Kernel: Adds two matrices and stores them in a third.
+    A, B inputs
+    C output 
+*/ 
 __global__ void MatAddKernel(const Matrix A, const Matrix B, Matrix C)
 {
 	int idx = threadIdx.x + blockDim.x*blockIdx.x; //thread in x
@@ -19,6 +19,9 @@ __global__ void MatAddKernel(const Matrix A, const Matrix B, Matrix C)
 	}
 }
 
+/* 
+    Driver for launching MatAddKernel
+*/
 void MatAdd(const Matrix A, const Matrix B, Matrix C)
 {
     int Gpu = 1; 
@@ -42,8 +45,6 @@ void MatAdd(const Matrix A, const Matrix B, Matrix C)
     d_B.gpu_deallocate(); 
     d_C.gpu_deallocate(); 
 }
-
-
 
 
 //Main program 

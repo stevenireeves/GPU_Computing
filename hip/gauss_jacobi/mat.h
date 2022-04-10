@@ -2,6 +2,9 @@
 #define MAT_H
 #include <hip/hip_runtime.h>
 
+/* 
+    Header file with member functions for Matrix class.
+*/
 class Matrix
 {
 public:
@@ -22,6 +25,7 @@ public:
         else
             hipMalloc(&elements, width*height*sizeof(float));  
     }
+
 
 /* member functions */ 
     void load(const Matrix old_matrix, const int dir = 0){
