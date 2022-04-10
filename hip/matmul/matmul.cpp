@@ -2,9 +2,7 @@
   major routines referenced from CUDA Programming Guide. */
 
 #include <iostream>
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <device_launch_parameters.h>
+#include <hip/hip_runtime.h>
 #include <stdio.h>
 #include <cstring>
 #include <ctime>
@@ -38,37 +36,35 @@ void MatMul(const Matrix A, const Matrix B, Matrix C)
 {
     int Gpu = 1; 
     int toDev = 1, fromDev = 2; 
-	//Load A and B to device memory 
+    //Load A and B to device memory 
     //Allocate Matrix C
-	Matrix d_A(A.width, A.height, A.stride, Gpu);
+    Matrix d_A(A.width, A.height, A.stride, Gpu);
     Matrix d_B(B.width, B.height, B.stride, Gpu);
     Matrix d_C(C.width, C.height, C.stride, Gpu);
     d_A.load(A, toDev);
     d_B.load(B, toDev); 
 	
-    
-
-	// Invoke Kernel
-	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-	dim3 dimGrid(B.width / dimBlock.x, A.height/ dimBlock.y); 
-    //Use Cuda Events for timing
-    cudaEvent_t start, stop; 
+    // Invoke Kernel
+    dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+    dim3 dimGrid(B.width / dimBlock.x, A.height/ dimBlock.y); 
+    //Use HIP Events for timing
+    hipEvent_t start, stop; 
     float time; 
-    cudaEventCreate(&start); 
-    cudaEventCreate(&stop); 
-    cudaEventRecord(start, 0); 
+    hipEventCreate(&start); 
+    hipEventCreate(&stop); 
+    hipEventRecord(start, 0); 
 
-	MatMulKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
-    cudaEventRecord(stop, 0); 
-    cudaEventSynchronize(stop); 
-    cudaEventElapsedTime(&time, start, stop); 
+    MatMulKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
+    hipEventRecord(stop, 0); 
+    hipEventSynchronize(stop); 
+    hipEventElapsedTime(&time, start, stop); 
     std::cout<< " Shared Memory Matrix Multiplication time =" << '\t' 
              << time << "ms" << std::endl; 
 
 	// Read C from Device memory 
     C.load(d_C, fromDev);
 	
-	//Free device memory 
+    //Free device memory 
     d_A.dealloc(Gpu);
     d_B.dealloc(Gpu);
     d_C.dealloc(Gpu);
@@ -146,35 +142,34 @@ void NaiveMatMul(const Matrix A, const Matrix B, Matrix C)
 
     int Gpu=1, toDev = 1, fromDev = 2; 
 	//Load A and B to device memory
-	Matrix d_A(A.width, A.height,0, Gpu);
+    Matrix d_A(A.width, A.height,0, Gpu);
     d_A.load(A, toDev); 
-	Matrix d_B(B.width, B.height,0, Gpu);
+    Matrix d_B(B.width, B.height,0, Gpu);
     d_B.load(B, toDev); 
 
 	// Allocate C in device memory
-	Matrix d_C(C.width, C.height,0, Gpu);
+    Matrix d_C(C.width, C.height,0, Gpu);
 
-	// Invoke kernel 
-	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-	dim3 dimGrid(B.width / dimBlock.x, A.height / dimBlock.y);
+    // Invoke kernel 
+    dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+    dim3 dimGrid(B.width / dimBlock.x, A.height / dimBlock.y);
 
-    // Use cudaEvent type for timing
+    // Use hipEvent type for timing
 
-    cudaEvent_t start, stop; 
+    hipEvent_t start, stop; 
     float elapsed_secs; 
-    cudaEventCreate(&start); 
-    cudaEventCreate(&stop); 
-    cudaEventRecord(start, 0); 
+    hipEventCreate(&start); 
+    hipEventCreate(&stop); 
+    hipEventRecord(start, 0); 
 
-	naivekernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
-    cudaEventRecord(stop, 0); 
-    cudaEventSynchronize(stop); 
-    cudaEventElapsedTime(&elapsed_secs, start, stop); 
-
-	std::cout<<" Naive GPU MatMul Time = "<< elapsed_secs << "ms" << std::endl;
-	// Read C from device memory 
+    naivekernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
+    hipEventRecord(stop, 0); 
+    hipEventSynchronize(stop); 
+    hipEventElapsedTime(&elapsed_secs, start, stop); 
+    std::cout<<" Naive GPU MatMul Time = "<< elapsed_secs << "ms" << std::endl;
+    // Read C from device memory 
     C.load(d_C, fromDev); 
-	// Free device memory 
+    // Free device memory 
     d_A.dealloc(Gpu);
     d_B.dealloc(Gpu);
     d_C.dealloc(Gpu); 
@@ -215,8 +210,8 @@ int main()
 {
 // Set up matrices
     int Cpu = 0;
-	int N = 1024;
-	int M = 1024;
+    int N = 1024;
+    int M = 1024;
 
     Matrix A(N, M, N, Cpu), B(M, N, M, Cpu), C(N, N, N, Cpu);
     Matrix Ds(N, M, N, Cpu), D(N,M,N, Cpu);
@@ -224,13 +219,13 @@ int main()
 	
 
 	//set values for A and B 
-	for( int i = 0; i < A.height; i++){
-		for( int j = 0; j < A.width; j++)
-			{
-                A.elements[i*A.stride + j] = 1.0f;
-                B.elements[i*B.stride + j] = 1.0f;
-			}
-	}
+    for( int i = 0; i < A.height; i++){
+    	for( int j = 0; j < A.width; j++)
+    	{
+            A.elements[i*A.stride + j] = 1.0f;
+            B.elements[i*B.stride + j] = 1.0f;
+    	}
+    }
 
 
 // Call matrix multiplication. 
@@ -243,12 +238,12 @@ int main()
 	std::cout<< " Serial Time = " << serial << "s" << std::endl;
 
 //OpenMP
+/*
 	clock_t begin = clock();	
 	CPUMatMul(A,B,D);
 	clock_t end = clock();
 	double fullcpu = double(end - begin) / (CLOCKS_PER_SEC*12);
 	std::cout<< " CPU Time = " << fullcpu << "s" << std::endl; //*/
-
 //Naive CUDA
 	NaiveMatMul(A,B,nC);
 

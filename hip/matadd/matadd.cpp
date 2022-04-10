@@ -1,5 +1,6 @@
 #include <iostream>
 #include <stdlib.h>
+#include <hip/hip_runtime.h>
 #include "mat.h"
 
 /* 3 Matrices
@@ -31,12 +32,10 @@ void MatAdd(const Matrix A, const Matrix B, Matrix C)
 
     Matrix d_C(w, h, Gpu); 
  
-	dim3 dimBlock(16, 16); 
-	dim3 dimGrid(A.width/dimBlock.x, A.height/dimBlock.y);
-    std::cout<<dimGrid.x<<std::endl;	
-	MatAddKernel<<<dimGrid,dimBlock>>>(d_A, d_B, d_C); 
-		
-	cudaMemcpy(C.elements, d_C.elements, C.width*C.height*sizeof(float), cudaMemcpyDeviceToHost); 
+    dim3 dimBlock(16, 16); 
+    dim3 dimGrid(A.width/dimBlock.x, A.height/dimBlock.y);
+    MatAddKernel<<<dimGrid,dimBlock>>>(d_A, d_B, d_C); 
+    hipMemcpy(C.elements, d_C.elements, C.width*C.height*sizeof(float), hipMemcpyDeviceToHost); 
 
 	//Free Memory
     d_A.gpu_deallocate();
@@ -65,7 +64,6 @@ int main()
 	}
 
     MatAdd(A,B,C);
-
     A.cpu_deallocate();
     B.cpu_deallocate();
     C.cpu_deallocate();

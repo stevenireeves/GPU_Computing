@@ -1,6 +1,6 @@
 #ifndef MAT_H
 #define MAT_H
-
+#include <hip/hip_runtime.h>
 /* This is a header file for matmul, since it is compiled with nvcc, it has the CUDA extensions for C++ */ 
 
 class Matrix
@@ -24,7 +24,7 @@ public:
         if(type == 0)
             elements = new float[width*height];
         else if(type == 1)
-            cudaMalloc(&elements, width*height*sizeof(float)); 
+            hipMalloc(&elements, width*height*sizeof(float)); 
     }
 
 /* member functions */ 
