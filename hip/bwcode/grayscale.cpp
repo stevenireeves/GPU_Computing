@@ -1,4 +1,4 @@
-//#include <cuda_runtime.h>
+#include <hip/hip_runtime.h>
 #include "CImg.h"
 
 using namespace cimg_library;
@@ -54,11 +54,11 @@ int main()
     /* Generate device memory */ 
     unsigned char *d_src;
     unsigned char *d_gs;
-    cudaMalloc((void**)&d_src, size);
-    cudaMalloc((void**)&d_gs, gsize);
+    hipMalloc((void**)&d_src, size);
+    hipMalloc((void**)&d_gs, gsize);
 
     /* copy RGB onto device */ 
-    cudaMemcpy(d_src, src.data(), size, cudaMemcpyHostToDevice);
+    hipMemcpy(d_src, src.data(), size, hipMemcpyHostToDevice);
 
     //launch the kernel
     dim3 blkDim (16, 16, 1);
@@ -66,10 +66,10 @@ int main()
     rgb2gray<<<grdDim, blkDim>>>(d_src, d_gs, width, height);
 
     //copy back Gray-scale to CPU
-    cudaMemcpy(gs.data(), d_gs, gsize, cudaMemcpyDeviceToHost);
+    hipMemcpy(gs.data(), d_gs, gsize, hipMemcpyDeviceToHost);
 
-    cudaFree(d_src);
-    cudaFree(d_gs);
+    hipFree(d_src);
+    hipFree(d_gs);
 
 	gs.save("GSSAGAN.bmp");
     return 0;
