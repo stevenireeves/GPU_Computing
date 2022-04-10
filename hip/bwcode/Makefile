@@ -1,12 +1,10 @@
-C = nvcc
-CPP = g++
-NVCCFLAGS =  -arch=sm_60 
+C = hipcc
 CFLAGS = -lX11 -lpthread
 
 all: grayscale
 
-grayscale: grayscale.cu  
-	$(C) $(NVCCFLAGS) $(CFLAGS) -o grayscale.exe grayscale.cu 
+grayscale: grayscale.cpp  
+	$(C) $(CFLAGS) -o grayscale.exe grayscale.cpp 
 clean:
 	rm -f grayscale.exe GSSAGAN.bmp *.o
 

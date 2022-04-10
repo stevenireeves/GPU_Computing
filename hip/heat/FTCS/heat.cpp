@@ -4,10 +4,15 @@
 #include <cmath>
 #include <stdlib.h>
 #include <stdio.h>
+#include <hip/hip_runtime.h>
 
 #define M 1024 
 
-
+/* 
+    Kernel: Computes one step of the forward time centered space algorithm.
+    Input: FP32 array f_new, FP32 array f, FP32 dx, FP32 k, FP32 dt
+    Output: FP32 array f_new
+*/
 __global__ void ftcs(float f_new[], 
                      const float f[], const float dx,
                      const float k, const float dt)
@@ -21,6 +26,11 @@ __global__ void ftcs(float f_new[],
 
 }
 
+/*
+    Kernel: Applies the Initial Conditions
+    Inputs: FP32 array f, FP32 array x, FP32 dx
+    Output: FP32 array f
+*/
 __global__ void initialize(float f[], float x[], const float dx)
 {
     int tid = threadIdx.x + blockIdx.x*blockDim.x; 
@@ -29,12 +39,22 @@ __global__ void initialize(float f[], float x[], const float dx)
 	f[tid] = exp(-0.5f*xt*xt);
 }
 
+/*
+    Kernel: Fills f_new with the contents of f_old
+    Inputs: FP32 array f_old, FP32 array f_new
+    Output: FP32 array f_new
+*/
 __global__ void equate(float f_old[], const float f_new[]){
     int tid = threadIdx.x + blockIdx.x*blockDim.x; 
     f_old[tid] = f_new[tid]; 
 }
 
-__global__ void bc(float *f)
+/*
+    Kernel: Applies the outflow boundary conditions.
+    Inputs: FP32 array f
+    Output: FP32 array f
+*/
+__global__ void bc(float f[])
 {
 	int tid = threadIdx.x + blockIdx.x*blockDim.x; 
 	if(tid == 0) //use only one thread for 1D BC
@@ -44,6 +64,9 @@ __global__ void bc(float *f)
 	}
 }
 
+/*
+    Helper function to write array to filesystem
+*/
 void io_fun(std::string file, float *x, float *f)
 {
 	std::ofstream myfile_tsN; 
@@ -57,7 +80,9 @@ void io_fun(std::string file, float *x, float *f)
 	myfile_tsN.close(); 
 }
 
-
+/*
+    Driver function to simulate the heat profile in a 1-D bar. 
+*/
 int main()
 {
     //Integration Parameters 
@@ -76,9 +101,9 @@ int main()
     x = new float[M]; 
  
 	float *d_f1, *d_f2, *d_x; 
-	cudaMalloc(&d_f1, sz);
-    cudaMalloc(&d_f2, sz); 
-    cudaMalloc(&d_x, sz); 
+	hipMalloc(&d_f1, sz);
+    hipMalloc(&d_f2, sz); 
+    hipMalloc(&d_x, sz); 
 	
 	//Kernel parameters
 	dim3 dimBlock(16,1,1); 
@@ -88,10 +113,10 @@ int main()
     initialize<<<dimGrid, dimBlock>>>(d_f1, d_x, dx);
   
 	//Copy for IO operation
- 	cudaMemcpy(x, d_x, sz, cudaMemcpyDeviceToHost); 
+ 	hipMemcpy(x, d_x, sz, hipMemcpyDeviceToHost); 
    
     //device x is no longer needed 
-    cudaFree(d_x); 
+    hipFree(d_x); 
 	/*====================== Perform Integration =======================*/ 
 
 	std::string f2;
@@ -100,16 +125,16 @@ int main()
 	{
 	//Call the stencil routine
 		ftcs<<<dimGrid, dimBlock>>>(d_f2, d_f1, dx, k, dt); 
-		cudaDeviceSynchronize(); 
+		hipDeviceSynchronize(); 
 	//Call BC
 		bc<<<dimGrid, dimBlock>>>(d_f2); 
-		cudaDeviceSynchronize();
+		hipDeviceSynchronize();
         equate<<<dimGrid, dimBlock>>>(d_f1, d_f2); 
 		if(fmod(t, tio) == 0.0f)
 		{
 		//IO function
 			f2 = "sol" + std::to_string(kk) + ".dat"; 
-			cudaMemcpy(f,d_f2, sz, cudaMemcpyDeviceToHost);
+			hipMemcpy(f,d_f2, sz, hipMemcpyDeviceToHost);
 			io_fun(f2, x, f); 
     		kk++;
 		}
@@ -120,13 +145,13 @@ int main()
 	if(fmod(tmax,tio) != 0.0f)
 	{//IO Function 
 		f2 = "final_sol.dat"; 
-		cudaMemcpy(f,d_f1, sz, cudaMemcpyDeviceToHost);
+		hipMemcpy(f,d_f1, sz, hipMemcpyDeviceToHost);
 		io_fun(f2, x, f); 
 	}
 
 	//deallocate memory 
     delete x, f; 
-	cudaFree(d_f1);
-    cudaFree(d_f2); 
+	hipFree(d_f1);
+    hipFree(d_f2); 
 }
 
