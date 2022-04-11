@@ -1,9 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
+#include <hip/hip_runtime.h>
+
 #define NUM_BITS 32 
 #define size 1024 
 
+/*
+    device function to compute Hillis and Steele plus scan.
+    Input: class T array x
+    Output: class T array x
+*/
 template <class T>
 __device__ T plus_scan(T *x) //Hillis and Steele
 {
@@ -28,7 +35,11 @@ __device__ T plus_scan(T *x) //Hillis and Steele
 	return x[tid]; 
 }
 
-
+/*
+    Kernel: Partitions the array by bit
+    Input: unsigned int array values, unsigned int scalar bit
+    Output: unsgigned int array values
+*/
 __global__ void partition_by_bit(unsigned int *values, unsigned int bit)
 {
 	unsigned int tid = threadIdx.x; 
@@ -56,35 +67,36 @@ __global__ void partition_by_bit(unsigned int *values, unsigned int bit)
 	}
 }
 
+/*
+    Driver function for the Radix Sort algorithm.
+    Inputs: unsigned int array values
+    Output: sorted unsigned int array values
+*/
 void radix_sort(unsigned int *values)
 {
 	unsigned int *d_vals; 
  	unsigned int bit; 
-	cudaMalloc(&d_vals, size*sizeof(unsigned int)); 
- 	cudaMemcpy(d_vals, values, size*sizeof(unsigned int), cudaMemcpyHostToDevice); 
+	hipMalloc(&d_vals, size*sizeof(unsigned int)); 
+ 	hipMemcpy(d_vals, values, size*sizeof(unsigned int), hipMemcpyHostToDevice); 
 	for(bit = 0; bit < NUM_BITS; bit++)
 	{
 		partition_by_bit<<<1,size>>>(d_vals, bit); 
-		cudaDeviceSynchronize();
+		hipDeviceSynchronize();
 	}
-	cudaMemcpy(values, d_vals, size*sizeof(unsigned int), cudaMemcpyDeviceToHost); 
-	cudaFree(d_vals);
+	hipMemcpy(values, d_vals, size*sizeof(unsigned int), hipMemcpyDeviceToHost); 
+	hipFree(d_vals);
 }
 
 
 int main()
 {
-	unsigned int *h_vals;
-	h_vals = (unsigned int*)malloc(size*sizeof(unsigned int)); 
+	unsigned int *h_vals = new unsigned int[size];
 
 	std::cout<<"original array"<<std::endl;
 	for(int i = 0; i<size; i++)
 	{
 		h_vals[i] = size - i;
-//		int bit = (h_vals[i]>>1)&0b001; 
-//		std::cout<<h_vals[i]<< "   " << bit << std::endl;
 	}
-
 
 	radix_sort(h_vals); 
 	
@@ -94,6 +106,6 @@ int main()
 		std::cout<<h_vals[i]<<'\t';
 	}
 
-	free(h_vals);
+	delete h_vals;
 	return 0; 
 }
