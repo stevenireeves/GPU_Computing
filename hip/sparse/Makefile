@@ -1,9 +1,9 @@
-C = nvcc
-CFLAGS = -arch=sm_60 -std=c++11
+C = hipcc
+CFLAGS = -std=c++11
 
 all: spmat 
-spmat: matcompare.cu
-	$(C) $(CFLAGS) -o mat.exe matcompare.cu
+spmat: matcompare.cpp
+	$(C) $(CFLAGS) -o mat.exe matcompare.cpp
 
 clean:
 	rm -f mat.exe *.o *.err *.out
