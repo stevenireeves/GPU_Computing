@@ -19,14 +19,12 @@ __device__ float myfun(float x)
 __global__ void map(float xbeg, float dx, int n, float *f1)
 {
 	int tid = threadIdx.x + blockDim.x*blockIdx.x; 
-	if(tid < 1 && tid > n)
-		return; 
+	if(tid >= n) return; 
 
 	float2 x; 
 	x.x = xbeg + tid*dx; 
-	x.y = xbeg + (tid - 1)*dx; 
-	float ftemp = myfun(x.x)*dx*0.5f + myfun(x.y)*dx*0.5f;
-	f1[tid-1] = ftemp;  
+	x.y = xbeg + (tid + 1)*dx; 
+	f1[tid] = myfun(x.x)*dx*0.5f + myfun(x.y)*dx*0.5f;
 }
 
 /*  Computes the reduction of FP32 array d_in. 
@@ -80,12 +78,12 @@ float mmmmmm_pi(int n)
     
     //Allocation    
     h_reduc = new float[reduc];
-    hipMalloc((void**)&d_data, original);
-    hipMalloc((void**)&d_reduc, reduc);
+    hipMalloc(&d_data, original);
+    hipMalloc(&d_reduc, reduc);
     
     //Kernel Parameters
-    dim3 block_dim(1024,1,1);
-    dim3 grid_dim(n/block_dim.x,1,1);
+    dim3 block_dim(1024, 1, 1);
+    dim3 grid_dim(n/block_dim.x, 1, 1);
     
     //integration parameters
     float xbeg = -1.0f;
@@ -94,6 +92,8 @@ float mmmmmm_pi(int n)
     dim3 map_grid(n/block_dim.x + 1, 1,1); 
     //map+stencil kernel Note because of the shift we need more threads.
     map<<<map_grid, block_dim>>>(xbeg, dx, n, d_data);
+    float data;
+    hipMemcpy(&data, d_data, sizeof(float), hipMemcpyDeviceToHost);
     hipDeviceSynchronize(); // Need map to be applied to all data before reduction!
     size_t size = block_dim.x*sizeof(float);
     shmem_reduce_kernel<<<grid_dim, block_dim,size>>>(d_reduc, d_data);
@@ -101,7 +101,7 @@ float mmmmmm_pi(int n)
     hipDeviceSynchronize();
     //Second Stage of First sum! 
     shmem_reduce_kernel<<<1, block_dim, size>>>(d_reduc, d_reduc);
-	hipMemcpy(h_reduc,d_reduc, reduc, hipMemcpyDeviceToHost); 
+    hipMemcpy(h_reduc, d_reduc, reduc, hipMemcpyDeviceToHost); 
     value = h_reduc[0];
     //Recall that value now = pi/2
     value *= 2.0f;
