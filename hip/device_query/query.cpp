@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <hip/hip_runtime.h>
+
  //Query code, mostly borrowed from the internets. 
 // Print device properties
-void printDevProp(hipDeviceProp devProp)
+void printDevProp(hipDeviceProp_t devProp)
 {
     printf("Name:                          %s\n",  devProp.name);
     printf("Total global memory:           %zu\n",  devProp.totalGlobalMem);
@@ -18,7 +19,6 @@ void printDevProp(hipDeviceProp devProp)
     printf("Clock rate:                    %d\n",  devProp.clockRate);
     printf("Total constant memory:         %zu\n",  devProp.totalConstMem);
     printf("Texture alignment:             %zu\n",  devProp.textureAlignment);
-    printf("Concurrent copy and execution: %s\n",  (devProp.deviceOverlap ? "Yes" : "No"));
     printf("Number of multiprocessors:     %d\n",  devProp.multiProcessorCount);
     printf("Kernel execution timeout:      %s\n",  (devProp.kernelExecTimeoutEnabled ? "Yes" : "No"));
     return;
@@ -26,21 +26,13 @@ void printDevProp(hipDeviceProp devProp)
  
 int main()
 {
-    // Number of CUDA devices
     int devCount;
-    hipGetDeviceCount(&devCount);
     printf("HIP Device Query...\n");
-    printf("There are %d HIP devices.\n", devCount);
- 
-    // Iterate through devices
-    for (int i = 0; i < devCount; ++i)
-    {
-        // Get device properties
-        printf("\nHIP Device #%d\n", i);
-        hipDeviceProp devProp;
-        hipGetDeviceProperties(&devProp, i);
-        printDevProp(devProp);
-    }
+    // Get device properties
+    printf("\nHIP Device #%d\n", 0);
+    hipDeviceProp_t devProp;
+    hipGetDeviceProperties(&devProp, 0);
+    printDevProp(devProp);
  
     printf("\nPress any key to exit...");
     char c;
