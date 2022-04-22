@@ -13,7 +13,7 @@
 #include "submat.h"
 
 // Thread block size
-#define BLOCK_SIZE 32
+#define BLOCK_SIZE 64
 
 
 
