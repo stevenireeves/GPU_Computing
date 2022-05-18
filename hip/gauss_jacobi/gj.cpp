@@ -63,10 +63,8 @@ void load_Matrix(std::string file, Matrix A)
 __global__ void shared_gj(const Matrix A, const float x[], float xout[], const float b[]) //Computes one iteration of GJ
 {
     int row = threadIdx.x;
-    int col = threadIdx.y; 
     int tidx = row + blockIdx.x*blockDim.x;
-    int tidy = col + blockIdx.y*blockDim.y; 
-    if (!(tidx < A.height) || tidy >= A.width)
+    if (tidx >= A.height)
             return; // thread outside bounds.
     __shared__ float Asub[BLOCK_SIZE][BLOCK_SIZE]; 
     __shared__ float xsub[BLOCK_SIZE];
@@ -75,7 +73,8 @@ __global__ void shared_gj(const Matrix A, const float x[], float xout[], const f
     {
             
             // grab shared local data for operations
-            Asub[row][col] = A.elements[(block*BLOCK_SIZE + row)*A.width + tidy];
+            for(int j = 0; j < BLOCK_SIZE; j++)
+                Asub[row][j] = A.elements[tidx*A.width + block*BLOCK_SIZE + j ];
             xsub[row] = x[block * BLOCK_SIZE + row];
             // sync threads, all are ready now to compute
             __syncthreads ();
@@ -89,7 +88,6 @@ __global__ void shared_gj(const Matrix A, const float x[], float xout[], const f
             }
             __syncthreads ();
     }
-    if(tidy == tidx) 
     xout[tidx] = 1.0f/A.elements[tidx + tidx*A.width]*(b[tidx] - yval);
 }
 
@@ -182,9 +180,9 @@ void par_gj(Matrix A, float *x, float *b, float eps)
     float *d_x, *d_b, *d_xnew;
     float *dres; 
     dres = (float*)malloc(sizeof(float));
-    hipMalloc((void**)&d_x, A.width*sizeof(float));
-    hipMalloc((void**)&d_b, A.height*sizeof(float));
-    hipMalloc((void**)&d_xnew, A.width*sizeof(float));
+    hipMalloc(&d_x, A.width*sizeof(float));
+    hipMalloc(&d_b, A.height*sizeof(float));
+    hipMalloc(&d_xnew, A.width*sizeof(float));
 
     hipMemcpy(d_A.elements,A.elements,A.width*A.height*sizeof(float),hipMemcpyHostToDevice);
     hipMemcpy(d_x, x, A.width*sizeof(float),hipMemcpyHostToDevice);
@@ -192,8 +190,6 @@ void par_gj(Matrix A, float *x, float *b, float eps)
 
     dim3 dimBlock(BLOCK_SIZE);
     dim3 dimGrid((A.width+ dimBlock.x - 1)/dimBlock.x);
-    dim3 dimbMult(BLOCK_SIZE, BLOCK_SIZE); 
-    dim3 dimgMult((A.width+ dimbMult.x - 1)/dimbMult.x, (A.height + dimbMult.y -1)/dimbMult.y);
     float time; 
     hipEvent_t start, stop; 
     hipEventCreate(&start); 
@@ -202,8 +198,8 @@ void par_gj(Matrix A, float *x, float *b, float eps)
     while(res>eps)
     {
         //Compute x^{n+1}
-        naive_gj<<<dimgMult,dimbMult>>>(d_A, d_x, d_xnew, d_b);
-        shared_gj<<<dimgMult,dimbMult>>>(d_A, d_x, d_xnew, d_b);
+//        naive_gj<<<dimGrid, dimBlock>>>(d_A, d_x, d_xnew, d_b);
+        shared_gj<<<dimGrid, dimBlock>>>(d_A, d_x, d_xnew, d_b);
 
         //Compute vector of residuals
         compute_r<<<dimGrid,dimBlock>>>(d_x,d_xnew); //Store r in d_x
