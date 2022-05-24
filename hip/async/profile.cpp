@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <hip/hip_runtime.h>
 
 int main()
 {
@@ -6,11 +7,11 @@ int main()
         const unsigned int bytes = N*sizeof(int);
         int *h_a = (int*)malloc(bytes);
         int *d_a; 
-        cudaMalloc((int**)&d_a, bytes);
+        hipMalloc((int**)&d_a, bytes);
 
         memset(h_a, 0, bytes); 
-        cudaMemcpy(d_a, h_a, bytes, cudaMemcpyHostToDevice);
-        cudaMemcpy(h_a, d_a, bytes, cudaMemcpyDeviceToHost);
+        hipMemcpy(d_a, h_a, bytes, hipMemcpyHostToDevice);
+        hipMemcpy(h_a, d_a, bytes, hipMemcpyDeviceToHost);
 
         return 0;
 }
