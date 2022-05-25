@@ -1,0 +1,11 @@
+C = hipcc
+CFLAGS = -std=c++14 -lcublas
+#LDFLAGS = -L/opt/rocm-5.1.0/hipblas/lib
+
+all: saxpy
+
+saxpy: cublas_saxpy.cpp
+	$(C) $(LDFLAGS) $(CFLAGS) -o saxpy.exe cublas_saxpy.cpp
+
+clean:
+	rm -f saxpy.exe

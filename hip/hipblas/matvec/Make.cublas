@@ -1,0 +1,10 @@
+C = hipcc
+CFLAGS = -std=c++14 -lcublas
+
+all: matvec
+
+matvec: cublas_matvec.cpp
+	$(C) $(CFLAGS) -o matvec.exe cublas_matvec.cpp
+
+clean:
+	rm -f matvec.exe
