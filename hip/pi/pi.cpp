@@ -72,12 +72,11 @@ float mmmmmm_pi(int n)
     //Initialization
     float value; 
     float *d_data;
-    float *d_reduc, *h_reduc; 
+    float *d_reduc; 
     size_t original = n*sizeof(float);
     size_t reduc = n/(1024)*sizeof(float);
     
     //Allocation    
-    h_reduc = new float[reduc];
     hipMalloc(&d_data, original);
     hipMalloc(&d_reduc, reduc);
     
@@ -92,21 +91,15 @@ float mmmmmm_pi(int n)
     dim3 map_grid(n/block_dim.x + 1, 1,1); 
     //map+stencil kernel Note because of the shift we need more threads.
     map<<<map_grid, block_dim>>>(xbeg, dx, n, d_data);
-    float data;
-    hipMemcpy(&data, d_data, sizeof(float), hipMemcpyDeviceToHost);
-    hipDeviceSynchronize(); // Need map to be applied to all data before reduction!
     size_t size = block_dim.x*sizeof(float);
     shmem_reduce_kernel<<<grid_dim, block_dim,size>>>(d_reduc, d_data);
     //Recall that this makes a reduced array of size grid_dim/block_dim.
-    hipDeviceSynchronize();
     //Second Stage of First sum! 
     shmem_reduce_kernel<<<1, block_dim, size>>>(d_reduc, d_reduc);
-    hipMemcpy(h_reduc, d_reduc, reduc, hipMemcpyDeviceToHost); 
-    value = h_reduc[0];
+    hipMemcpy(&value, d_reduc, sizeof(float), hipMemcpyDeviceToHost); 
     //Recall that value now = pi/2
     value *= 2.0f;
     //Free memory
-    delete h_reduc;
     hipFree(d_reduc);
     hipFree(d_data);
     return value;
