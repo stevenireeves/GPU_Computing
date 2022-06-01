@@ -13,7 +13,6 @@ __global__ void transposeReg(Matrix odata, const Matrix idata)
 	int tidx = threadIdx.x + blockIdx.x*blockDim.x;
 	int tidy = threadIdx.y + blockIdx.y*blockDim.y;
 	int width = gridDim.x * TILE_DIM;	
-
 	odata.elements[tidx*width + tidy] = idata.elements[tidy*width + tidx];
 }
 

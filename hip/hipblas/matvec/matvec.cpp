@@ -57,7 +57,7 @@ smemMatVec (Matrix A, float *x, float *y) {
 
 int main()
 {
-    int N = std::pow(2,10);
+    int N = std::pow(2,13);
     float time_instance, my_mv_time=0.f, smem_mv_time=0.f, hipblas_mv_time=0.f;
     double my_mv_bandwidth, smem_mv_bandwidth, hipblas_mv_bandwidth;
 
@@ -109,7 +109,7 @@ int main()
     hipblasHandle_t handle;
     hipblasCreate(&handle);
     hipblasOperation_t op = HIPBLAS_OP_N;
-    float alpha = 1.f, beta = 1.f;
+    float alpha = 1.f, beta = 0.f;
     
     for(int i = 0; i < 10; i++){
         hipEventRecord(start);

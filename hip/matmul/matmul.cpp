@@ -13,7 +13,7 @@
 #include "submat.h"
 
 // Thread block size
-#define BLOCK_SIZE 64
+#define BLOCK_SIZE 16
 
 
 
@@ -229,14 +229,14 @@ int main()
 
 
 // Call matrix multiplication. 
-
+#if 0
 //Serial 
 	clock_t sstart = clock();	//Serial Start
 	serialMatMul(A,B,Ds);
 	clock_t send = clock(); 	//Serial End
 	double serial = double(send - sstart) / CLOCKS_PER_SEC;	
 	std::cout<< " Serial Time = " << serial << "s" << std::endl;
-
+#endif
 //OpenMP
 /*
 	clock_t begin = clock();	

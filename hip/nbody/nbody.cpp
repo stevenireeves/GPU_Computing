@@ -6,7 +6,7 @@
 
 #define EPS2 0.0001
 #define BLOCK_SIZE  256 
-#define N  2048 
+#define N  65536 
 
 /*
     Device function: computes the body to body interaction. 
@@ -211,10 +211,10 @@ int main()
 			X[i] = {5.0f, 5.0f, 5.0f, 1.0f};
 		}
 		else{
-			X[i].x = ((float)rand() / (RAND_MAX))*4+0.5f; 
-			X[i].y = ((float)rand() / (RAND_MAX))*4+0.5f; 
-			X[i].z = ((float)rand() / (RAND_MAX))*4+0.5f; 
-			X[i].w = ((float)rand() / (RAND_MAX))*2; 
+			X[i].x = ((float)rand() / (float)(RAND_MAX))*4+0.5f; 
+			X[i].y = ((float)rand() / (float)(RAND_MAX))*4+0.5f; 
+			X[i].z = ((float)rand() / (float)(RAND_MAX))*4+0.5f; 
+			X[i].w = ((float)rand() / (float)(RAND_MAX))*2; 
 		}
 	}
 	io_fun("IC.dat",X,N); //write out initial condition! 

@@ -155,9 +155,8 @@ __global__ void reduce4(T *d_out, const T *d_in)
         }
         __syncthreads(); //make sure all additions are finished
     }
-	if(tid < 64)
+	if(tid < 32)
 	{
-       sdata[tid] += sdata[tid+64];
        sdata[tid] += sdata[tid+32];
        sdata[tid] += sdata[tid+16];
        sdata[tid] += sdata[tid+8];
