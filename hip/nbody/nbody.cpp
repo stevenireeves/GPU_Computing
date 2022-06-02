@@ -1,4 +1,6 @@
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 #include <fstream> 
 #include <string> 
 #include <stdlib.h>
@@ -6,7 +8,7 @@
 
 #define EPS2 0.0001
 #define BLOCK_SIZE  256 
-#define N  65536 
+#define N  2048 
 
 /*
     Device function: computes the body to body interaction. 
@@ -22,12 +24,12 @@ __device__ void bodyBodyInteraction(float4 bi, float4 bj, float3 &ai)
   r.y = bj.y - bi.y;
   r.z = bj.z - bi.z;
   // distSqr = dot(r_ij, r_ij) + EPS^2
-   float distSqr = r.x * r.x + r.y * r.y + r.z * r.z + EPS2;
+  float distSqr = r.x * r.x + r.y * r.y + r.z * r.z + EPS2;
   // invDistCube =1/distSqr^(3/2)
-   float distSixth = distSqr * distSqr * distSqr;
+  float distSixth = distSqr * distSqr * distSqr;
   float invDistCube = 1.0f/sqrtf(distSixth);
   // s = m_j * invDistCube
-   float s = bj.w * invDistCube;
+  float s = bj.w * invDistCube;
   // a_i =  a_i + s * r_ij
   ai.x += r.x * s;
   ai.y += r.y * s;
@@ -134,7 +136,7 @@ __global__ void leapfrog(float4 *X, float3 *V, float3 *A, float dt, int iter)
 void io_fun(std::string file, float4 *X, int M)
 {
     std::ofstream myfile_tsN;
-    myfile_tsN.open(file);
+    myfile_tsN.open("data/" + file);
     for(int i = 0; i < M; i++)
     {
         myfile_tsN << X[i].x << '\t' << X[i].y<< '\t' << X[i].z << '\t' << X[i].w << std::endl;
@@ -156,21 +158,25 @@ void nbody(float4 *X, float dt, int tio, float tend)
     float t = 0.0f;
     int k = 0;
 	std::string f; 
-    hipMalloc((void**)&d_X, N*sizeof(float4));
-    hipMalloc((void**)&d_V, N*sizeof(float3));
-    hipMalloc((void**)&d_A, N*sizeof(float3));
+    hipMalloc(&d_X, N*sizeof(float4));
+    hipMalloc(&d_V, N*sizeof(float3));
+    hipMalloc(&d_A, N*sizeof(float3));
 	hipMemset(d_V, 0.0f, N*sizeof(float3)); 
 	hipMemset(d_A, 0.0f, N*sizeof(float3));
     hipMemcpy(d_X,X, N*sizeof(float4), hipMemcpyHostToDevice);
+
     dim3 dimGrid(N/BLOCK_SIZE);
     dim3 dimBlock(BLOCK_SIZE);
+
     while(t<tend)
     {
         leapfrog<<<dimGrid,dimBlock>>>(d_X,d_V, d_A, dt, k);
     	hipDeviceSynchronize();
         if(k%tio==0)
         {
-            f = "f" + std::to_string(k) + ".dat";
+            std::ostringstream ss;
+            ss << "f" << std::setw(5) << std::setfill('0') << std::to_string(k);
+            f = ss.str() +  ".dat";
             hipMemcpy(X,d_X, N*sizeof(float4), hipMemcpyDeviceToHost);
             io_fun(f, X, N);
         }
@@ -179,7 +185,9 @@ void nbody(float4 *X, float dt, int tio, float tend)
     }
     if(k%tio!=0.0f)
     {
-         f = "f" + std::to_string(k) + ".dat";
+         std::ostringstream ss;
+         ss << "f" << std::setw(5) << std::setfill('0') << std::to_string(k);
+         f = ss.str() +  ".dat";
          hipMemcpy(X,d_X, N*sizeof(float4), hipMemcpyDeviceToHost);
          io_fun(f, X, N);
     }
@@ -194,9 +202,9 @@ void nbody(float4 *X, float dt, int tio, float tend)
 int main()
 {
 	float4 *X;
-	float dt = 0.001; 
-	int tio = 50; 
-	float tend = 0.5;
+	float dt = 0.00005; 
+	int tio = 10; 
+	float tend = 0.35;
 
 	X = new float4[N];
 /* Randomized Initial Condition */  
@@ -208,7 +216,7 @@ int main()
 		}
 		else if(i == N/2)
 		{
-			X[i] = {5.0f, 5.0f, 5.0f, 1.0f};
+			X[i] = {5.0f, 5.0f, 5.0f, 300.0f};
 		}
 		else{
 			X[i].x = ((float)rand() / (float)(RAND_MAX))*4+0.5f; 
