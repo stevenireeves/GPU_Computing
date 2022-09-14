@@ -1,38 +1,45 @@
 #ifndef MAT_H
 #define MAT_H
 #include <hip/hip_runtime.h>
-/* This is a header file for matmul, since it is compiled with nvcc, it has the CUDA extensions for C++ */ 
+#include <vector>
 
-class Matrix
-{
+class Matrix {
 public:
-
-/* Member Data */ 
-    int width; 
-    int height; 
-    int stride;
-    int my_type; 
-    float* elements; 
-
-/* Constructor  we want this class to be able to be generated both on CPU and GPU*/ 
-    __host__
-    Matrix(const int w, const int h, const int s = 0, const int type = 0){
-        width = w; 
-        height = h;
-        stride = (s==0)?w:s; 
-        my_type = type; //Matrix knows if it's CPU or GPU 
-        if(type == 0)
-            elements = new float[width*height];
-        else if(type == 1)
-            hipMalloc(&elements, width*height*sizeof(float)); 
-    }
-
-/* member functions */ 
-
-    void load(const Matrix old_matrix, const int dir=0);
-
-    void dealloc(int Proc=0);
+  /* Member Data */
+  int width;
+  int height;
 };
 
+class CpuMatrix;
+class GpuMatrix;
+
+class GpuMatrix : public Matrix {
+public:
+  float *elements;
+
+  /* Constructor */
+  GpuMatrix(const int w, const int h) {
+    width = w;
+    height = h;
+    hipMalloc(&elements, width * height * sizeof(float));
+  }
+
+  void load(const CpuMatrix oldMatrix);
+  void deAllocate();
+};
+
+class CpuMatrix : public Matrix {
+public:
+  std::vector<float> elements;
+  /* Constructor */
+  CpuMatrix(const int w, const int h, const float val = 0) {
+    width = w;
+    height = h;
+    elements.resize(w * h, val);
+  }
+
+  void load(const GpuMatrix oldMatrix);
+  void deAllocate();
+};
 
 #endif
