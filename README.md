@@ -9,3 +9,6 @@ Additionally, some codes are inspired by examples in the CUDA programming guide.
 
 There are two folders, the cuda directory and the hip directory. The cuda directory is for codes taught before 
 Spring 2022. The hip directory is for 2022 onwards. 
+
+
+This new branch tests Pull requests!
