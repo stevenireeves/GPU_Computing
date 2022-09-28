@@ -17,12 +17,12 @@
 __global__ void ForwardTimeCenteredSpace(float fNew[], const float f[],
                                          const float dx, const float k,
                                          const float dt) {
-  int tid = threadIdx.x + blockIdx.x * blockDim.x;
-  if (tid > 0 && tid < M - 1) // Skip boundaries!
+  int tId = threadIdx.x + blockIdx.x * blockDim.x;
+  if (tId > 0 && tId < M - 1) // Skip boundaries!
   {
     float temp2 =
-        f[tid] + k * dt / (dx * dx) * (f[tid + 1] - 2 * f[tid] + f[tid - 1]);
-    fNew[tid] = temp2;
+        f[tId] + k * dt / (dx * dx) * (f[tId + 1] - 2 * f[tId] + f[tId - 1]);
+    fNew[tId] = temp2;
   }
 }
 
@@ -32,10 +32,10 @@ __global__ void ForwardTimeCenteredSpace(float fNew[], const float f[],
     Output: FP32 array f
 */
 __global__ void Initialize(float f[], float x[], const float dx) {
-  int tid = threadIdx.x + blockIdx.x * blockDim.x;
-  float xt = -1.f + tid * dx;
-  x[tid] = xt;
-  f[tid] = exp(-0.5f * xt * xt);
+  int tId = threadIdx.x + blockIdx.x * blockDim.x;
+  float xt = -1.f + tId * dx;
+  x[tId] = xt;
+  f[tId] = exp(-0.5f * xt * xt);
 }
 
 /*
@@ -44,8 +44,8 @@ __global__ void Initialize(float f[], float x[], const float dx) {
     Output: FP32 array f_new
 */
 __global__ void Equate(float fOld[], const float fNew[]) {
-  int tid = threadIdx.x + blockIdx.x * blockDim.x;
-  fOld[tid] = fNew[tid];
+  int tId = threadIdx.x + blockIdx.x * blockDim.x;
+  fOld[tId] = fNew[tId];
 }
 
 /*
@@ -54,8 +54,8 @@ __global__ void Equate(float fOld[], const float fNew[]) {
     Output: FP32 array f
 */
 __global__ void BoundaryCondition(float f[]) {
-  int tid = threadIdx.x + blockIdx.x * blockDim.x;
-  if (tid == 0) // use only one thread for 1D BC
+  int tId = threadIdx.x + blockIdx.x * blockDim.x;
+  if (tId == 0) // use only one thread for 1D BC
   {
     f[0] = f[1];
     f[M - 1] = f[M - 2];
