@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <hip/hip_runtime.h>
+#include <vector>
 
 #define NUM_BITS 32 
 #define size 1024 
@@ -12,7 +13,7 @@
     Output: class T array x
 */
 template <class T>
-__device__ T plus_scan(T *x) //Hillis and Steele
+__device__ T PlusScan(T *x) //Hillis and Steele
 {
 	__shared__ T temp[2*size]; // allocated on invocation
 	int tid = threadIdx.x;
@@ -40,29 +41,29 @@ __device__ T plus_scan(T *x) //Hillis and Steele
     Input: unsigned int array values, unsigned int scalar bit
     Output: unsgigned int array values
 */
-__global__ void partition_by_bit(unsigned int *values, unsigned int bit)
+__global__ void PartitionByBit(unsigned int *values, unsigned int bit)
 {
 	unsigned int tid = threadIdx.x; 
-	unsigned int bsize = blockDim.x; 
-	unsigned int x_i = values[tid];
+	unsigned int bSize = blockDim.x; 
+	unsigned int xI = values[tid];
 	__syncthreads();
-	unsigned int p_i = (x_i >> bit) & 0b001; //value of x_i in binary at bits place predicate step! 
-	values[tid] = p_i; 
+	unsigned int pI = (xI >> bit) & 0b001; //value of x_i in binary at bits place predicate step! 
+	values[tid] = pI; 
 	__syncthreads();
 
-	unsigned int T_before = plus_scan(values); //scatter index before trues
+	unsigned int tBefore = PlusScan(values); //scatter index before trues
 	__syncthreads();
-	unsigned int T_t = values[bsize - 1]; //total "trues"
-	unsigned int F_t = bsize - T_t;
+	unsigned int tT = values[bSize - 1]; //total "trues"
+	unsigned int fT = bSize - tT;
 	__syncthreads();
-	if(p_i)
+	if(pI)
 	{
-		values[T_before - 1 + F_t] = x_i;
+		values[tBefore - 1 + fT] = xI;
 		__syncthreads(); 
 	}
 	else
 	{
-		values[tid - T_before] = x_i; 
+		values[tid - tBefore] = xI; 
 		__syncthreads();
 	}
 }
@@ -72,40 +73,38 @@ __global__ void partition_by_bit(unsigned int *values, unsigned int bit)
     Inputs: unsigned int array values
     Output: sorted unsigned int array values
 */
-void radix_sort(unsigned int *values)
+void RadixSort(std::vector<unsigned int> &values)
 {
-	unsigned int *d_vals; 
+	unsigned int *dVals; 
  	unsigned int bit; 
-	hipMalloc(&d_vals, size*sizeof(unsigned int)); 
- 	hipMemcpy(d_vals, values, size*sizeof(unsigned int), hipMemcpyHostToDevice); 
+	hipMalloc(&dVals, size*sizeof(unsigned int)); 
+ 	hipMemcpy(dVals, values.data(), size*sizeof(unsigned int), hipMemcpyHostToDevice); 
 	for(bit = 0; bit < NUM_BITS; bit++)
 	{
-		partition_by_bit<<<1,size>>>(d_vals, bit); 
-		hipDeviceSynchronize();
+		PartitionByBit<<<1,size>>>(dVals, bit); 
 	}
-	hipMemcpy(values, d_vals, size*sizeof(unsigned int), hipMemcpyDeviceToHost); 
-	hipFree(d_vals);
+	hipMemcpy(values.data(), dVals, size*sizeof(unsigned int), hipMemcpyDeviceToHost); 
+	hipFree(dVals);
 }
 
 
 int main()
 {
-	unsigned int *h_vals = new unsigned int[size];
+    std::vector<unsigned int> hVals(size);
 
 	std::cout<<"original array"<<std::endl;
 	for(int i = 0; i<size; i++)
 	{
-		h_vals[i] = size - i;
+		hVals[i] = size - i;
 	}
 
-	radix_sort(h_vals); 
+	RadixSort(hVals); 
 	
 	std::cout<<"Sorted Array"<<std::endl;
 	for(int i = 0; i<size; i++)
 	{
-		std::cout<<h_vals[i]<<'\t';
+		std::cout<<hVals[i]<<'\t';
 	}
 
-	delete h_vals;
 	return 0; 
 }
