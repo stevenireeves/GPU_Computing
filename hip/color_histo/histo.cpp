@@ -1,61 +1,56 @@
 #include <iostream>
 #include <stdlib.h>
 #include <hip/hip_runtime.h>
-
+#include <vector>
 /* Kernel example of a bad implementation of histogram. 
    Inputs: Int array d_bins, Int array d_in, Int BIN_COUNT
    Ouput: Int array d_bins
 */
-__global__ void faux_histo(int *d_bins, const int *d_in, const int BIN_COUNT)
+__global__ void FauxHisto(unsigned int *dBins, const int *dIn, const int binCount)
 {
 	int myId = threadIdx.x + blockDim.x*blockIdx.x; 
-	int myItem = d_in[myId]; 
-	int myBin = myItem % BIN_COUNT; 
-	d_bins[myBin]++; 
+	int myItem = dIn[myId]; 
+	int myBin = myItem % binCount; 
+	dBins[myBin]++; 
 }
 
 /* Kernel, example of a simple but unoptimized implementation of histogram. 
    Inputs: Int array d_bins, Int array d_in, Int BIN_COUNT
    Ouput: Int array d_bins
 */
-__global__ void simple_histo(int *d_bins, const int *d_in, const int BIN_COUNT)
+__global__ void SimpleHisto(unsigned int *dBins, const int *dIn, const int binCount)
 {
 	int myId = threadIdx.x + blockDim.x*blockIdx.x; 
-	int myItem = d_in[myId]; 
-	int myBin = myItem % BIN_COUNT; 
-	atomicAdd(&(d_bins[myBin]),1);
+	int myItem = dIn[myId]; 
+	int myBin = myItem % binCount; 
+	atomicAdd(&(dBins[myBin]),1);
 }
 
 /* Kernel, example of a more optimized implementation of histogram using shared memory
    Inputs: Int array d_bins, Int array d_in, Int BIN_COUNT
    Ouput: Int array d_bins
 */
-__global__ void smem_histo(int *d_bins, const int *d_in, const int BIN_COUNT, const int size)
+__global__ void SmemHisto(unsigned int *dBins, const int *dIn, const int binCount, const int size)
 {
     //Create Private copies of histo[] array; 
-    extern __shared__ unsigned int histo_private[];
+    extern __shared__ unsigned int histoLDS[];
 
     int tid = threadIdx.x;
-    if(threadIdx.x < BIN_COUNT)
-       histo_private[tid] = 0;
-    __syncthreads();
+    if(tid < binCount)
+       histoLDS[tid] = 0;
+    __syncthreads(); 
 
-    int i = threadIdx.x + blockDim.x*blockIdx.x;
-    //stride total number of threads
-	int stride = blockDim.x*gridDim.x;
-    while( i < size)
-    {
-        int buffer = i % BIN_COUNT; 
-        atomicAdd(&(histo_private[buffer]), 1);
-        i += stride;
-    }
+    int gid = threadIdx.x + blockDim.x*blockIdx.x;
+    int buffer = gid % binCount; 
+    buffer = 0;
+    atomicAdd(&(histoLDS[buffer]), 1);
     __syncthreads();
 
     //Build Final Histogram using private histograms.
 
-    if(tid < BIN_COUNT)
+    if(tid < binCount)
     {
-       atomicAdd(&(d_bins[tid]), histo_private[tid]);
+       atomicAdd(&(dBins[tid]), histoLDS[tid]);
     }
 }
 
@@ -64,43 +59,45 @@ __global__ void smem_histo(int *d_bins, const int *d_in, const int BIN_COUNT, co
 */
 int main()
 {
-	int *bins, *in, *d_bins, *d_in; 
-	const int ARRAY_SIZE = 65536;
-	const int ARRAY_BYTES = ARRAY_SIZE*sizeof(int);
-	const int BIN_COUNT = 16;
-	const int BIN_BYTES = BIN_COUNT*sizeof(int);
+    using uint = unsigned int;
+    uint *dBins;
+	int *dIn; 
+	const int arraySize  = 65536;
+	const int arrayBytes = arraySize*sizeof(int);
+	const int binCount   = 16;
+	const int binBytes   = binBytes*sizeof(uint);
 
-	bins = new int[BIN_BYTES];
-	in   = new int[ARRAY_BYTES];
-	hipMalloc(&d_in, ARRAY_BYTES); 
-	hipMalloc(&d_bins, BIN_BYTES);
+    std::vector<uint> bins(binCount, 0);
+    std::vector<int> in(arraySize);
+	hipMalloc(&dIn, arrayBytes); 
+	hipMalloc(&dBins, binBytes);
 
-	for(int i = 0; i < ARRAY_SIZE; i++)
+	for(int i = 0; i < arraySize; i++)
 		in[i] = i; 
 
-	hipMemcpy(d_in, in, ARRAY_BYTES, hipMemcpyHostToDevice); 
+	hipMemcpy(dIn, in.data(), arrayBytes, hipMemcpyHostToDevice); 
+	hipMemcpy(dBins, bins.data(), binBytes, hipMemcpyHostToDevice);
 	float gpuElapsedTime;
     hipEvent_t gpuStart, gpuStop;
     hipEventCreate(&gpuStart);
     hipEventCreate(&gpuStop);
     hipEventRecord(gpuStart, 0);
 //  Launch Kernel
-//	faux_histo<<<ARRAY_SIZE/BIN_COUNT, BIN_COUNT>>>(d_bins, d_in, BIN_COUNT);
-//	simple_histo<<<ARRAY_SIZE/BIN_COUNT, BIN_COUNT>>>(d_bins, d_in, BIN_COUNT);
-	smem_histo<<<ARRAY_SIZE/(32*BIN_COUNT), BIN_COUNT, BIN_BYTES>>>(d_bins, d_in, BIN_COUNT, ARRAY_SIZE);
+//	fauxHisto<<<arraySize/binCount, binCount>>>(dBins, dIn, binCount);
+	SimpleHisto<<<arraySize/binCount, binCount>>>(dBins, dIn, binCount);
+//	SmemHisto<<<arraySize/binCount, binCount, binBytes>>>(dBins, dIn, binCount, arraySize);
 	hipEventRecord(gpuStop,0);
     hipEventSynchronize(gpuStop);
     hipEventElapsedTime(&gpuElapsedTime, gpuStart, gpuStop); //time in milliseconds
     hipEventDestroy(gpuStart);
     hipEventDestroy(gpuStop);
 	std::cout<< "Time Taken = " << gpuElapsedTime << "ms" << std::endl;
-	hipMemcpy(bins,d_bins, BIN_BYTES, hipMemcpyDeviceToHost); 
+	hipMemcpy(bins.data(), dBins, binBytes, hipMemcpyDeviceToHost); 
 
 	std::cout<< "Histogram =" <<std::endl;
-	for(int i = 0; i < BIN_COUNT; i++)
+	for(int i = 0; i < binCount; i++)
 		std::cout<< "Bin " << i << " = " << bins[i]<<std::endl;
 
-    delete bins, in;
-	hipFree(d_bins);
-	hipFree(d_in);	
+	hipFree(dBins);
+	hipFree(dIn);	
 }
