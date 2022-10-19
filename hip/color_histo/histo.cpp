@@ -42,7 +42,6 @@ __global__ void SmemHisto(unsigned int *dBins, const int *dIn, const int binCoun
 
     int gid = threadIdx.x + blockDim.x*blockIdx.x;
     int buffer = gid % binCount; 
-    buffer = 0;
     atomicAdd(&(histoLDS[buffer]), 1);
     __syncthreads();
 
@@ -65,7 +64,7 @@ int main()
 	const int arraySize  = 65536;
 	const int arrayBytes = arraySize*sizeof(int);
 	const int binCount   = 16;
-	const int binBytes   = binBytes*sizeof(uint);
+	const int binBytes   = binCount*sizeof(uint);
 
     std::vector<uint> bins(binCount, 0);
     std::vector<int> in(arraySize);
@@ -84,8 +83,8 @@ int main()
     hipEventRecord(gpuStart, 0);
 //  Launch Kernel
 //	fauxHisto<<<arraySize/binCount, binCount>>>(dBins, dIn, binCount);
-	SimpleHisto<<<arraySize/binCount, binCount>>>(dBins, dIn, binCount);
-//	SmemHisto<<<arraySize/binCount, binCount, binBytes>>>(dBins, dIn, binCount, arraySize);
+//	SimpleHisto<<<arraySize/binCount, binCount>>>(dBins, dIn, binCount);
+	SmemHisto<<<arraySize/binCount, binCount, binBytes>>>(dBins, dIn, binCount, arraySize);
 	hipEventRecord(gpuStop,0);
     hipEventSynchronize(gpuStop);
     hipEventElapsedTime(&gpuElapsedTime, gpuStart, gpuStop); //time in milliseconds
