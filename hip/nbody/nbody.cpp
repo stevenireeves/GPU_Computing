@@ -5,6 +5,7 @@
 #include <string> 
 #include <stdlib.h>
 #include <hip/hip_runtime.h>
+#include <vector>
 
 #define EPS2 0.0001
 #define BLOCK_SIZE  256 
@@ -15,7 +16,7 @@
     Inputs: float4 bi, float4 bj, float3 ai
     Output: float ai
 */
-__device__ void bodyBodyInteraction(float4 bi, float4 bj, float3 &ai)
+__device__ void BodyBodyInteraction(float4 bi, float4 bj, float3 &ai)
 {
 
   float3 r;
@@ -41,12 +42,12 @@ __device__ void bodyBodyInteraction(float4 bi, float4 bj, float3 &ai)
     Inputs: float4 myPosition, float4 array shPosition, float3 accel
     Output: float4 array shPosition
 */
-__device__ void tile_calculation(float4 myPosition, float4 *shPosition,  float3 &accel)
+__device__ void TileCalculation(float4 myPosition, float4 *shPosition,  float3 &accel)
 {
  
   int i;
   for (i = 0; i < blockDim.x; i++) {
-    bodyBodyInteraction(myPosition, shPosition[i], accel);
+    BodyBodyInteraction(myPosition, shPosition[i], accel);
   }
 }
 
@@ -55,24 +56,24 @@ __device__ void tile_calculation(float4 myPosition, float4 *shPosition,  float3 
     Inputs: float4 array d_x, float3 array d_A
     Output: float3 array d_a
 */
-__device__ void calculate_forces(float4 *d_X, float3 *d_A)
+__device__ void CalculateForces(float4 *dX, float3 *dA)
 {
         __shared__ float4 shPosition[BLOCK_SIZE];
         float4 myPosition;
         int i, tile;
         float3 acc = {0.0f, 0.0f, 0.0f};
         int gtid = blockIdx.x * blockDim.x + threadIdx.x;
-        myPosition = d_X[gtid];
+        myPosition = dX[gtid];
         for (i = 0, tile = 0; i < N; i += BLOCK_SIZE, tile++)
         {
                     int idx = tile * blockDim.x + threadIdx.x;
-                    shPosition[threadIdx.x] = d_X[idx];
+                    shPosition[threadIdx.x] = dX[idx];
                     __syncthreads();
-                    tile_calculation(myPosition, shPosition ,acc);
+                    TileCalculation(myPosition, shPosition ,acc);
                     __syncthreads();
           }
     // Save the result in global memory for the integration step.
-    d_A[gtid] = acc;
+    dA[gtid] = acc;
 }
 
 /*
@@ -80,7 +81,7 @@ __device__ void calculate_forces(float4 *d_X, float3 *d_A)
     Inputs: float4 scalar X, float3 scalar V, float3 A, float dt
     Output float4 scalar X
 */
-__device__ void pos_advance(float4 &X, const float3 V, const float3 A, float dt)
+__device__ void PosAdvance(float4 &X, const float3 V, const float3 A, float dt)
 {
 	//this is called by each thread
 	X.x += V.x*dt + 0.5f*A.x*dt*dt; 
@@ -94,7 +95,7 @@ __device__ void pos_advance(float4 &X, const float3 V, const float3 A, float dt)
     Inputs: float3 scalar V, float3 scalar A1, float3 scalar A2, float scalar dt
     Output: float3 scalar V 
 */
-__device__ void vel_advance(float3 &V, const float3 A1, const float3 A2, float dt)
+__device__ void VelAdvance(float3 &V, const float3 A1, const float3 A2, float dt)
 {
 	//called by every thread
 	V.x += 0.5f*(A1.x + A2.x)*dt; 
@@ -107,11 +108,11 @@ __device__ void vel_advance(float3 &V, const float3 A1, const float3 A2, float d
     Inputs: float4 array X, float3 array V, float3 array A, float scalar dt, int iter
     Output: float4 array X, float3 array V, float3 array A 
 */
-__global__ void leapfrog(float4 *X, float3 *V, float3 *A, float dt, int iter)
+__global__ void LeapFrog(float4 *X, float3 *V, float3 *A, float dt, int iter)
 {
 	int gid = threadIdx.x + blockIdx.x * blockDim.x ;
 	if(iter == 0){ // Initial acceleration .
-        calculate_forces(X, A) ;
+        CalculateForces(X, A) ;
         __syncthreads();
 	}
 	float3 temp;
@@ -119,13 +120,13 @@ __global__ void leapfrog(float4 *X, float3 *V, float3 *A, float dt, int iter)
 	temp=A[gid];
 	__syncthreads();
 // Calculate x ^ n +1
-	pos_advance(X[gid], V[gid], temp, dt) ;
+	PosAdvance(X[gid], V[gid], temp, dt) ;
 	__syncthreads();
 // Calculate acceleration at the n +1 stage
-	calculate_forces(X, A) ;
+	CalculateForces(X, A) ;
 	__syncthreads();
 // Calculate v ^ n +1
-	vel_advance(V[gid], temp, A[gid] ,dt) ;
+	VelAdvance(V[gid], temp, A[gid] ,dt) ;
 }
 
 /*
@@ -133,7 +134,8 @@ __global__ void leapfrog(float4 *X, float3 *V, float3 *A, float dt, int iter)
     inputs: string file, float4 array X, int M
     output: N/A 
 */
-void io_fun(std::string file, float4 *X, int M)
+template<class T>
+void IoFun(std::string file, T X, int M)
 {
     std::ofstream myfile_tsN;
     myfile_tsN.open("data/" + file);
@@ -150,35 +152,35 @@ void io_fun(std::string file, float4 *X, int M)
     Input: float4 array X, float scalar dt, int tio, float tend
     Output: float4 array X, 
 */
-void nbody(float4 *X, float dt, int tio, float tend)
+void NBody(std::vector<float4> &X, float dt, int tio, float tend)
 //X are the positions, dt = time step, tio = io iter, tend = end simulation time, N= #of bodies
 {
-    float4 *d_X;
-    float3 *d_A, *d_V;
+    float4 *dX;
+    float3 *dA, *dV;
     float t = 0.0f;
     int k = 0;
 	std::string f; 
-    hipMalloc(&d_X, N*sizeof(float4));
-    hipMalloc(&d_V, N*sizeof(float3));
-    hipMalloc(&d_A, N*sizeof(float3));
-	hipMemset(d_V, 0.0f, N*sizeof(float3)); 
-	hipMemset(d_A, 0.0f, N*sizeof(float3));
-    hipMemcpy(d_X,X, N*sizeof(float4), hipMemcpyHostToDevice);
+    hipMalloc(&dX, N*sizeof(float4));
+    hipMalloc(&dV, N*sizeof(float3));
+    hipMalloc(&dA, N*sizeof(float3));
+	hipMemset(dV, 0.0f, N*sizeof(float3)); 
+	hipMemset(dA, 0.0f, N*sizeof(float3));
+    hipMemcpy(dX, X.data(), N*sizeof(float4), hipMemcpyHostToDevice);
 
     dim3 dimGrid(N/BLOCK_SIZE);
     dim3 dimBlock(BLOCK_SIZE);
 
     while(t<tend)
     {
-        leapfrog<<<dimGrid,dimBlock>>>(d_X,d_V, d_A, dt, k);
+        LeapFrog<<<dimGrid,dimBlock>>>(dX,dV, dA, dt, k);
     	hipDeviceSynchronize();
         if(k%tio==0)
         {
             std::ostringstream ss;
             ss << "f" << std::setw(5) << std::setfill('0') << std::to_string(k);
             f = ss.str() +  ".dat";
-            hipMemcpy(X,d_X, N*sizeof(float4), hipMemcpyDeviceToHost);
-            io_fun(f, X, N);
+            hipMemcpy(X.data(), dX, N*sizeof(float4), hipMemcpyDeviceToHost);
+            IoFun(f, X, N);
         }
         t+=dt;
         k++;
@@ -188,12 +190,12 @@ void nbody(float4 *X, float dt, int tio, float tend)
          std::ostringstream ss;
          ss << "f" << std::setw(5) << std::setfill('0') << std::to_string(k);
          f = ss.str() +  ".dat";
-         hipMemcpy(X,d_X, N*sizeof(float4), hipMemcpyDeviceToHost);
-         io_fun(f, X, N);
+         hipMemcpy(X.data(), dX, N*sizeof(float4), hipMemcpyDeviceToHost);
+         IoFun(f, X, N);
     }
-    hipFree(d_X);
-    hipFree(d_A);
-    hipFree(d_V);
+    hipFree(dX);
+    hipFree(dA);
+    hipFree(dV);
 }
 
 /*
@@ -201,12 +203,11 @@ void nbody(float4 *X, float dt, int tio, float tend)
 */
 int main()
 {
-	float4 *X;
 	float dt = 0.00005; 
 	int tio = 10; 
 	float tend = 0.35;
 
-	X = new float4[N];
+    std::vector<float4> X(N);
 /* Randomized Initial Condition */  
 	for(int i = 0; i < N; i++)
 	{
@@ -225,7 +226,6 @@ int main()
 			X[i].w = ((float)rand() / (float)(RAND_MAX))*2; 
 		}
 	}
-	io_fun("IC.dat",X,N); //write out initial condition! 
-	nbody(X, dt, tio, tend); 
-	delete X; 
+	IoFun("IC.dat",X,N); //write out initial condition! 
+	NBody(X, dt, tio, tend); 
 }
