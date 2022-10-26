@@ -15,7 +15,7 @@
     Input: FP32 Matrix A, FP32 array x, FP32 array b, FP32 epsilon
     Output: FP32 array x
 */
-void cpu_gj(Matrix A, float x[], float b[], float eps)
+void CpuGJ(const Matrix A, std::vector<float> &x, const std::vector<float> &b, float eps)
 {
     float res = 1.0f; 
     float summ1, summ2;
@@ -42,7 +42,7 @@ void cpu_gj(Matrix A, float x[], float b[], float eps)
 }
 
 /* Function to load elements from filesystem into Matrix. */
-void load_Matrix(std::string file, Matrix A)
+void LoadMatrix(std::string file, Matrix A)
 {
     std::ifstream f;
     f.open(file);
@@ -60,35 +60,34 @@ void load_Matrix(std::string file, Matrix A)
     Inputs: FP32 Matrix A, FP32 array x, FP32 array xout, FP32 array b
     Output: FP32 array xout
 */
-__global__ void shared_gj(const Matrix A, const float x[], float xout[], const float b[]) //Computes one iteration of GJ
+__global__ void SharedGJ(const Matrix A, const float x[], float xOut[], const float b[]) //Computes one iteration of GJ
 {
     int row = threadIdx.x;
     int tidx = row + blockIdx.x*blockDim.x;
     if (tidx >= A.height)
             return; // thread outside bounds.
-    __shared__ float Asub[BLOCK_SIZE][BLOCK_SIZE]; 
-    __shared__ float xsub[BLOCK_SIZE];
-    float yval = 0.0f; 
+    __shared__ float ASub[BLOCK_SIZE][BLOCK_SIZE];
+    __shared__ float xSub[BLOCK_SIZE];
+    float yVal = 0.0f; 
     for (int block = 0; block < (A.width+BLOCK_SIZE -1)/BLOCK_SIZE; block++)
     {
-            
             // grab shared local data for operations
             for(int j = 0; j < BLOCK_SIZE; j++)
-                Asub[row][j] = A.elements[tidx*A.width + block*BLOCK_SIZE + j ];
-            xsub[row] = x[block * BLOCK_SIZE + row];
+                ASub[row][j] = A.elements[tidx*A.width + block*BLOCK_SIZE + j ];
+            xSub[row] = x[block * BLOCK_SIZE + row];
             // sync threads, all are ready now to compute
             __syncthreads ();
 
             // multiply sub matrix and sub vector
             for (int e = 0; e < BLOCK_SIZE; e++){
-                    int tile_id = block*BLOCK_SIZE + e; 
-                    if(tile_id!=tidx){
-                        yval +=  Asub[row][e] * xsub[e];
+                    int tileId = block*BLOCK_SIZE + e; 
+                    if(tileId!=tidx){
+                        yVal +=  ASub[row][e] * xSub[e];
                     }
             }
             __syncthreads ();
     }
-    xout[tidx] = 1.0f/A.elements[tidx + tidx*A.width]*(b[tidx] - yval);
+    xOut[tidx] = 1.0f/A.elements[tidx + tidx*A.width]*(b[tidx] - yVal);
 }
 
 /* 
@@ -96,18 +95,16 @@ __global__ void shared_gj(const Matrix A, const float x[], float xout[], const f
     Inputs: FP32 Matrix, FP32 array x, FP32 array xout, FP32 array b
     Output: FP32 array xout
 */
-__global__ void naive_gj(const Matrix A, const float x[], float xout[], const float b[]) //Computes one iteration of GJ
+__global__ void NaiveGJ(const Matrix A, const float x[], float xOut[], const float b[]) //Computes one iteration of GJ
 {
 	int gid = threadIdx.x + blockIdx.x*blockDim.x; 
 	float summ1 = 0.0f; 
-	float temp; 
 	for (int k =0; k < A.width; k++)
 	{
 		if(k!= gid)
 			summ1 += A.elements[k + gid*A.width]*x[k]; //dot product 
 	} 
-	temp = 1.0f/A.elements[gid + gid*A.width]*(b[gid] - summ1);
-	xout[gid] = temp; 
+	xOut[gid] = 1.0f/A.elements[gid + gid*A.width]*(b[gid] - summ1);
 }
 
 /* 
@@ -115,11 +112,10 @@ __global__ void naive_gj(const Matrix A, const float x[], float xout[], const fl
     Inputs: FP32 array xold, FP32 array xnew
     Output: FP32 array xold
 */
-__global__ void compute_r(float *xold, const float *xnew) //store abs(diff) in xold
+__global__ void ComputeR(float xOld[], const float xNew[]) //store abs(diff) in xold
 {
 	int gid = threadIdx.x + blockDim.x*blockIdx.x; 
-	float temp = fabs(xnew[gid] - xold[gid]); 
-	xold[gid] = temp; 
+	xOld[gid] = fabs(xNew[gid] - xOld[gid]);
 }
 
 /*
@@ -127,16 +123,16 @@ __global__ void compute_r(float *xold, const float *xnew) //store abs(diff) in x
     Inputs: FP32 array d_out, FP32 array d_in
     Output: FP32 array d_out
 */
-__global__ void reduce_r(float * d_out, const float *d_in)
+__global__ void ReduceR(float dOut[], const float dIn[])
 {
     // sdata is allocated in the kernel call: via dynamic shared memeory
-    extern __shared__ float sdata[];
+    extern __shared__ float sData[];
 
     int myId = threadIdx.x + blockDim.x*blockIdx.x;
     int tid = threadIdx.x;
 
     //load shared mem from global mem
-    sdata[tid] = d_in[myId];
+    sData[tid] = dIn[myId];
     __syncthreads(); // always sync before using sdata
 
     //do reduction over shared memory
@@ -144,7 +140,7 @@ __global__ void reduce_r(float * d_out, const float *d_in)
     {
         if(tid < s)
         {
-           sdata[tid] += sdata[tid + s];
+           sData[tid] += sData[tid + s];
         }
         __syncthreads(); //make sure all additions are finished
     }
@@ -152,7 +148,7 @@ __global__ void reduce_r(float * d_out, const float *d_in)
     //only tid 0 writes out result!
     if(tid == 0)
     {
-       d_out[blockIdx.x] = sdata[0];
+       dOut[blockIdx.x] = sData[0];
     }
 }
 
@@ -161,10 +157,10 @@ __global__ void reduce_r(float * d_out, const float *d_in)
     Inputs: FP32 array xout, FP32 array xin
     Output: FP32 array xout
 */
-__global__ void fill(float *xout, float *xin)
+__global__ void fill(float xOut[], const float xIn[])
 {
 	int gid = threadIdx.x + blockDim.x*blockIdx.x; 
-	xout[gid] = xin[gid];
+	xOut[gid] = xIn[gid];
 }
 
 /*
@@ -172,21 +168,19 @@ __global__ void fill(float *xout, float *xin)
     Inputs: FP32 Matrix A, FP32 array x, FP32 array b, FP32 scalar eps
     Output: FP32 array x
 */
-void par_gj(Matrix A, float *x, float *b, float eps)
+void ParGJ(const Matrix A, std::vector<float> &x, const std::vector<float> &b, float eps)
 {
     float res = 1.0f;
     int counter = 0;
-    Matrix d_A(A.width, A.height, 1);
-    float *d_x, *d_b, *d_xnew;
-    float *dres; 
-    dres = (float*)malloc(sizeof(float));
-    hipMalloc(&d_x, A.width*sizeof(float));
-    hipMalloc(&d_b, A.height*sizeof(float));
-    hipMalloc(&d_xnew, A.width*sizeof(float));
+    Matrix dA(A.width, A.height, 1);
+    float *dX, *dB, *dXNew;
+    hipMalloc(&dX, A.width*sizeof(float));
+    hipMalloc(&dB, A.height*sizeof(float));
+    hipMalloc(&dXNew, A.width*sizeof(float));
 
-    hipMemcpy(d_A.elements,A.elements,A.width*A.height*sizeof(float),hipMemcpyHostToDevice);
-    hipMemcpy(d_x, x, A.width*sizeof(float),hipMemcpyHostToDevice);
-    hipMemcpy(d_b, b, A.height*sizeof(float),hipMemcpyHostToDevice);
+    hipMemcpy(dA.elements,A.elements,A.width*A.height*sizeof(float),hipMemcpyHostToDevice);
+    hipMemcpy(dX, x.data(), A.width*sizeof(float),hipMemcpyHostToDevice);
+    hipMemcpy(dB, b.data(), A.height*sizeof(float),hipMemcpyHostToDevice);
 
     dim3 dimBlock(BLOCK_SIZE);
     dim3 dimGrid((A.width+ dimBlock.x - 1)/dimBlock.x);
@@ -199,40 +193,38 @@ void par_gj(Matrix A, float *x, float *b, float eps)
     {
         //Compute x^{n+1}
 //        naive_gj<<<dimGrid, dimBlock>>>(d_A, d_x, d_xnew, d_b);
-        shared_gj<<<dimGrid, dimBlock>>>(d_A, d_x, d_xnew, d_b);
+        SharedGJ<<<dimGrid, dimBlock>>>(dA, dX, dXNew, dB);
 
         //Compute vector of residuals
-        compute_r<<<dimGrid,dimBlock>>>(d_x,d_xnew); //Store r in d_x
+        ComputeR<<<dimGrid,dimBlock>>>(dX, dXNew); //Store r in d_x
 
         //Reduce vector of residuals to find norm
-        reduce_r<<<1,N, N*sizeof(float)>>>(d_x, d_x);
-        hipMemcpy(dres, d_x, sizeof(float), hipMemcpyDeviceToHost);
-        res = dres[0]; 
+        ReduceR<<<1,N, N*sizeof(float)>>>(dX, dX);
+        hipMemcpy(&res, dX, sizeof(float), hipMemcpyDeviceToHost);
         std::cout<<res<<std::endl; 
         //X = Xnew
-        fill<<<dimGrid,dimBlock>>>(d_x, d_xnew);
-        hipDeviceSynchronize(); 
+        fill<<<dimGrid,dimBlock>>>(dX, dXNew);
         counter++;
         if(counter==A.width)
            break;
     }
-    hipEventRecord(stop); 
-    hipEventSynchronize(stop); 
+    hipEventRecord(stop);
+    hipEventSynchronize(stop);
     hipEventElapsedTime(&time, start, stop); 
 	std::cout<<"Steps Taken to Convergence = "<< counter<<std::endl;
     std::cout<<"Time for execution = " << time <<"ms" << std::endl; 
     //export X
-    hipMemcpy(x, d_x, A.width*sizeof(float), hipMemcpyDeviceToHost);
-    hipFree(d_x);
-    hipFree(d_xnew);
-    hipFree(d_b);
+    hipMemcpy(x.data(), dX, A.width*sizeof(float), hipMemcpyDeviceToHost);
+    hipFree(dX);
+    hipFree(dXNew);
+    hipFree(dB);
 }
 
 int main()
 {
 // Matrix stuff! 
 	Matrix A(N, N); 
-	load_Matrix("matrix.dat", A);
+	LoadMatrix("matrix.dat", A);
 
 // Vector stuff!
     std::vector<float> x(N, 0.f); 
@@ -242,7 +234,7 @@ int main()
 	float eps = 1e-7; 	
 
 // Call the Gauss-Jacobi algorithms
-	par_gj(A, x.data(), b.data(), eps); 
+	ParGJ(A, x, b, eps); 
 
 	std::cout<<"Soln X = "<<std::endl;
 	for(int i = 0; i <10; i++)
