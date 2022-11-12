@@ -2,6 +2,7 @@
 #include <fstream>
 #include <string>
 #include <hip/hip_runtime.h>
+#include <vector>
 #include "CImg.h"
 
 #define NUM_BINS 256
@@ -15,7 +16,7 @@ using namespace cimg_library;
    Output: unsigned int array out
    out contains the color histograms from the image in.
 */
-__global__ void histogram_smem_atomics(const unsigned char *in, int width, int height, unsigned int *out)
+__global__ void HistogramSmemAtomics(const unsigned char *in, int width, int height, unsigned int *out)
 {
     // pixel coordinates
     int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -50,8 +51,9 @@ __global__ void histogram_smem_atomics(const unsigned char *in, int width, int h
     atomicAdd(&out[t + NUM_BINS * 2], smem[t].z);
 }
 
+
 /* Helper function to write out histogram to filesystem. */
-void io_fun(std::string file, unsigned int *histo)
+void io_fun(std::string file, std::vector<unsigned int> histo)
 {
     std::ofstream myfile_tsN;
     myfile_tsN.open(file);
@@ -69,37 +71,33 @@ void io_fun(std::string file, unsigned int *histo)
 */
 int main()
 {
+    using uint = unsigned int;
     //load image
     CImg<unsigned char> src("window.bmp");
     int width = src.width();
     int height = src.height();
-    size_t size = src.size();//width*height*sizeof(unsigned char);
-    
-    //create pointer to image
-    unsigned char *h_src = src.data();
+    size_t size = src.size()*sizeof(unsigned char); //note sizeof(uchar) = 1, but src.size() != numBytes in general
+    std::vector<uint> hHisto(NUM_BINS*3, 0);
 
-    unsigned int *h_histo = new unsigned int[NUM_BINS*3];
+    unsigned char *dSrc;
+    unsigned int  *dHisto;
 
-    unsigned char *d_src;
-    unsigned int  *d_histo;
+    hipMalloc((void**)&dSrc, size);
+    hipMalloc((void**)&dHisto, NUM_BINS*3*sizeof(unsigned int));
 
-    hipMalloc((void**)&d_src, size);
-    hipMalloc((void**)&d_histo, NUM_BINS*3*sizeof(unsigned int));
-
-    hipMemcpy(d_src, h_src, size, hipMemcpyHostToDevice);
+    hipMemcpy(dSrc, src.data(), size, hipMemcpyHostToDevice);
 
     //launch the kernel
     dim3 blkDim (16, 16, 1);
     dim3 grdDim ((width + 15)/16, (height + 15)/16, 1);
-    histogram_smem_atomics<<<grdDim, blkDim>>>(d_src, width, height, d_histo);
+    HistogramSmemAtomics<<<grdDim, blkDim>>>(dSrc, width, height, dHisto);
     //copy back the result to CPU
-    hipMemcpy(h_histo, d_histo, NUM_BINS*3*sizeof(unsigned int), hipMemcpyDeviceToHost);
+    hipMemcpy(hHisto.data(), dHisto, NUM_BINS*3*sizeof(unsigned int), hipMemcpyDeviceToHost);
 
-    io_fun("histo.dat", h_histo);
+    io_fun("histo.dat", hHisto);
 
-    delete h_histo;
-    hipFree(d_src);
-    hipFree(d_histo);
+    hipFree(dSrc);
+    hipFree(dHisto);
 
     return 0;
 }
