@@ -31,7 +31,7 @@ __global__ void NaiveKernel(const GMat A, const GMat B, GMat C);
    :inputs: Matrix A, Matrix B
    :outputs: Matrix C = AB
  */
-void MatMul(const CMat A, const CMat B, CMat C) {
+void MatMul(const CMat A, const CMat B, CMat &C) {
   int Gpu = 1;
   // Load A and B to device memory
   // Allocate Matrix C
@@ -130,7 +130,7 @@ __global__ void NaiveKernel(const GMat A, const GMat B, GMat C) {
   C.elements[row * C.width + col] = cValue;
 }
 
-void NaiveMatMul(const CMat A, const CMat B, CMat C) {
+void NaiveMatMul(const CMat A, const CMat B, CMat &C) {
   // Load A and B to device memory
   GMat dA(A.width, A.height);
   dA.load(A);
@@ -219,7 +219,9 @@ int main() {
 
   // Naive HIP
   NaiveMatMul(A, B, nC);
+  std::cout<< nC.elements[0] << std::endl;
 
   // With LDS
   MatMul(A, B, C);
+  std::cout<< C.elements[0] << std::endl;
 }
