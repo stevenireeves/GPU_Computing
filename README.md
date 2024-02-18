@@ -7,5 +7,4 @@ https://github.com/benhiller/cuda-mandelbrot
 
 Additionally, some codes are inspired by examples in the CUDA programming guide. 
 
-There are two folders, the cuda directory and the hip directory. The cuda directory is for codes taught before 
-Spring 2022. The hip directory is for 2022 onwards. 
+For the 2024 session, we will be utilizing the cuda directory for example programs. The hip directory is for the HIP model of programming for AMD/NVIDIA GPUs. The hip directory is not maintained following 2022.
