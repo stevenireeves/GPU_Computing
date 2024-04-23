@@ -1,14 +1,14 @@
 C = nvcc
-NVCCFLAGS =  -arch=sm_70
-CFLAGS = -std=c++11
+CFLAGS = -std=c++11 -Xcompiler -fopenmp
 
 all: matmul 
 
-matmul: matmul.cu mat.o 
-	$(C) $(NVCCFLAGS) $(CFLAGS) -rdc=true -o matmul.exe matmul.cu mat.o
- 
+matmul: matmul.o mat.o 
+	$(C) $(CFLAGS) -o matmul.exe matmul.o mat.o 
+matmul.o: matmul.cu
+	$(C) $(CFLAGS) -c matmul.cu -o matmul.o
 mat.o: mat.cu
-	$(C) $(NVCCFLAGS) $(CFLAGS) -dc mat.cu
+	$(C) $(CFLAGS) -c mat.cu -o mat.o
 
 clean:
 	rm -f matmul.exe *.dat *.o

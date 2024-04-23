@@ -295,7 +295,8 @@ __global__ void reduce6(T *d_out, const T *d_in, unsigned int n)
 
 int main()
 {
-        int n = pow(2,20);
+        constexpr int n = 2 << 20; //pow(2,20);
+	std::cout << " n = " << n << std::endl;
 	int *array, *reduced; 
 	cudaMalloc((int**)&array, n*sizeof(int)); 
 	cudaMalloc((int**)&reduced, 1024*sizeof(int)); 

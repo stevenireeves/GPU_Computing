@@ -8,7 +8,7 @@
             a -> constant multiple, float
 	    x -> input 'vector', constant pointer to float
 	    y -> input and output 'vector', pointer to float  */
-__global__ void saxpy(int n, float a, const float x[], float y[])
+__global__ void saxpy(int n, float a, const float *x, float *y)
 {
 	int id = threadIdx.x + blockDim.x*blockIdx.x; /* Performing that for loop */ 
 	// check to see if id is greater than size of array
@@ -46,6 +46,7 @@ int main()
 	saxpy<<<1, 256>>>(N, a, d_x, d_y);
 
 	//Transfering Memory back! 
+	std::cout<<cudaGetLastError()<<std::endl;
 	cudaMemcpy(y.data(), d_y, N*sizeof(float), cudaMemcpyDeviceToHost);
 	std::cout<<"First Element of z = ax + y is " << y[0]<<std::endl; 
 	cudaFree(d_x);
