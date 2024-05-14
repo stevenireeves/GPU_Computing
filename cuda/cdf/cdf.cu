@@ -99,15 +99,12 @@ void compute_norm_cdf(float *cdf, float *h_pdf, float *x, float mu, float sigma,
 
 	        //data generation kernel!
         data_gen<<<2, num_data/2+1>>>(pdf, d_x, xbeg, dx, mu, sigma, num_data);
-        cudaDeviceSynchronize();
 
         //Perform scan for cdf calculation!
         bl_scan<<<1, num_data/2, 2*size>>>(d_cdf, pdf, num_data); 
-        cudaDeviceSynchronize();
 
 	//Shift Correct for CDF 
 	ex2in<<<1,num_data, size>>>(d_cdf, pdf, num_data);
-	cudaDeviceSynchronize();
         //Transfer to Host!
         cudaMemcpy(cdf, d_cdf, size, cudaMemcpyDeviceToHost);
         cudaMemcpy(x, d_x, size, cudaMemcpyDeviceToHost);

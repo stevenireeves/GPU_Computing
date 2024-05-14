@@ -78,13 +78,11 @@ float mmmmmm_pi(int n)
 	dim3 map_grid(n/block_dim.x + 1, 1,1); 
         //map+stencil kernel Note because of the shift we need more threads.
         map<<<map_grid, block_dim>>>(xbeg, dx, n, d_data);
-        cudaDeviceSynchronize(); // Need map to be applied to all data before reduction!
 
         size_t size = block_dim.x*sizeof(float);
 
         shmem_reduce_kernel<<<grid_dim, block_dim,size>>>(d_reduc, d_data);
         //Recall that this makes a reduced array of size grid_dim/block_dim.
-        cudaDeviceSynchronize();
         //Second Stage of First sum! 
         shmem_reduce_kernel<<<1, block_dim, size>>>(d_reduc, d_reduc);
 	cudaMemcpy(h_reduc,d_reduc, reduc, cudaMemcpyDeviceToHost); 
